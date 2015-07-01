@@ -15,18 +15,24 @@ package lia.meetlucene;
  * See the License for the specific lan      
 */
 
-import org.apache.lucene.index.IndexWriter;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.FileReader;
+import java.io.IOException;
+import java.nio.file.FileSystems;
+
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Version;
-
-import java.io.File;
-import java.io.FileFilter;
-import java.io.IOException;
-import java.io.FileReader;
 
 // From chapter 1
 
@@ -36,6 +42,10 @@ import java.io.FileReader;
  */
 public class Indexer {
 
+  private IndexWriter writer;
+	  
+	  
+	  
   public static void main(String[] args) throws Exception {
     if (args.length != 2) {
       throw new IllegalArgumentException("Usage: java " + Indexer.class.getName()
@@ -58,15 +68,18 @@ public class Indexer {
       + (end - start) + " milliseconds");
   }
 
-  private IndexWriter writer;
+
 
   public Indexer(String indexDir) throws IOException {
-    Directory dir = FSDirectory.open(new File(indexDir));
-    writer = new IndexWriter(dir,            //3
-                 new StandardAnalyzer(       //3
-                     Version.LUCENE_30),//3
-                 true,                       //3
-                             IndexWriter.MaxFieldLength.UNLIMITED); //3
+    Directory dir = FSDirectory.open(  FileSystems.getDefault().getPath( indexDir));
+   
+    Analyzer analyzer = new StandardAnalyzer();
+    analyzer.setVersion(Version.LUCENE_5_2_1);
+    
+    IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
+    writer = new IndexWriter(dir, iwConfig);           //3
+    
+    writer.deleteAll();
   }
 
   public void close() throws IOException {
@@ -100,11 +113,9 @@ public class Indexer {
 
   protected Document getDocument(File f) throws Exception {
     Document doc = new Document();
-    doc.add(new Field("contents", new FileReader(f)));      //7
-    doc.add(new Field("filename", f.getName(),              //8
-                Field.Store.YES, Field.Index.NOT_ANALYZED));//8
-    doc.add(new Field("fullpath", f.getCanonicalPath(),     //9
-                Field.Store.YES, Field.Index.NOT_ANALYZED));//9
+    doc.add(new TextField("contents", new FileReader(f)));      //7
+    doc.add(new StringField("fullpath", f.getCanonicalPath(),  Store.YES));//8
+    doc.add(new StringField("filename", f.getName(),  Store.YES));//8
     return doc;
   }
 

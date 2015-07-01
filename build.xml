@@ -73,7 +73,7 @@
            classpathref="classpath"
            encoding="UTF8"
            debug="on"
-           deprecation="on">
+           deprecation="on" includeantruntime="false" includejavaruntime="true">
       <include name="**/*.java"/>
       <exclude name="**/NutchExample.java"/>
     </javac>

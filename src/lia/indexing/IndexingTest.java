@@ -15,23 +15,28 @@ package lia.indexing;
  * See the License for the specific lan      
 */
 
-import junit.framework.TestCase;
+import java.io.IOException;
 
+import junit.framework.TestCase;
 import lia.common.TestUtil;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.miscellaneous.LimitTokenCountAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.analysis.WhitespaceAnalyzer;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.index.Term;
-
-import java.io.IOException;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.Version;
 
 // From chapter 2
 public class IndexingTest extends TestCase {
@@ -50,9 +55,11 @@ public class IndexingTest extends TestCase {
 
     for (int i = 0; i < ids.length; i++) {      //3
       Document doc = new Document();
+      
       doc.add(new Field("id", ids[i],
-                        Field.Store.YES,
-                        Field.Index.NOT_ANALYZED));
+              Field.Store.YES,
+              Field.Index.NOT_ANALYZED));
+    
       doc.add(new Field("country", unindexed[i],
                         Field.Store.YES,
                         Field.Index.NO));
@@ -68,17 +75,26 @@ public class IndexingTest extends TestCase {
   }
 
   private IndexWriter getWriter() throws IOException {            // 2
-    return new IndexWriter(directory, new WhitespaceAnalyzer(),   // 2
-                           IndexWriter.MaxFieldLength.UNLIMITED); // 2
+  //  return new IndexWriter(directory, new WhitespaceAnalyzer(),   // 2
+  //                         IndexWriter.MaxFieldLength.UNLIMITED); // 2
+    IndexWriter out = null;
+    Analyzer analyzer = new StandardAnalyzer();
+    analyzer.setVersion(Version.LUCENE_5_2_1); 
+    IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
+    out = new IndexWriter(directory, iwConfig);           //3
+    return out;
+    
   }
 
   protected int getHitCount(String fieldName, String searchString)
     throws IOException {
-    IndexSearcher searcher = new IndexSearcher(directory); //4
+	IndexReader ireader = DirectoryReader.open(directory);
+    IndexSearcher searcher = new IndexSearcher(ireader);   //3   
+    
+    
     Term t = new Term(fieldName, searchString);
     Query query = new TermQuery(t);                        //5
     int hitCount = TestUtil.hitCount(searcher, query);     //6
-    searcher.close();
     return hitCount;
   }
 
@@ -89,7 +105,7 @@ public class IndexingTest extends TestCase {
   }
 
   public void testIndexReader() throws IOException {
-    IndexReader reader = IndexReader.open(directory);
+	IndexReader reader = DirectoryReader.open(directory);
     assertEquals(ids.length, reader.maxDoc());             //8
     assertEquals(ids.length, reader.numDocs());            //8
     reader.close();
@@ -121,7 +137,8 @@ public class IndexingTest extends TestCase {
     IndexWriter writer = getWriter();
     assertEquals(2, writer.numDocs());
     writer.deleteDocuments(new Term("id", "1"));
-    writer.optimize();                //3
+  
+    //writer.optimize();                //3
     writer.commit();
     assertFalse(writer.hasDeletions());
     assertEquals(1, writer.maxDoc());  //C
@@ -179,6 +196,18 @@ public class IndexingTest extends TestCase {
 
     assertEquals(1, getHitCount("contents", "bridges"));  //1
 
+    Analyzer analyzer = new LimitTokenCountAnalyzer(new WhitespaceAnalyzer(),1);
+    analyzer.setVersion(Version.LUCENE_5_2_1); 
+    IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
+   
+    IndexWriter out = new IndexWriter(directory, iwConfig);           //3
+    
+    
+    
+    MaxFieldLength fieldLength = new MaxFieldLength(256);
+    
+    
+    
     IndexWriter writer = new IndexWriter(directory, new WhitespaceAnalyzer(), //2
                                          new IndexWriter.MaxFieldLength(1)); //2
     Document doc = new Document();                        // 3

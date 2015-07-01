@@ -15,20 +15,23 @@ package lia.meetlucene;
  * See the License for the specific lan      
 */
 
+import java.nio.file.FileSystems;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.queryParser.QueryParser;
-import org.apache.lucene.queryParser.ParseException;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Version;
-
-import java.io.File;
-import java.io.IOException;
 
 // From chapter 1
 
@@ -38,8 +41,7 @@ import java.io.IOException;
  */
 public class Searcher {
 
-  public static void main(String[] args) throws IllegalArgumentException,
-        IOException, ParseException {
+  public static void main(String[] args) throws  Exception {
     if (args.length != 2) {
       throw new IllegalArgumentException("Usage: java " + Searcher.class.getName()
         + " <index dir> <query>");
@@ -51,32 +53,31 @@ public class Searcher {
     search(indexDir, q);
   }
 
-  public static void search(String indexDir, String q)
-    throws IOException, ParseException {
+  public static void search(String indexDir, String q)  throws Exception {
 
-    Directory dir = FSDirectory.open(new File(indexDir)); //3
-    IndexSearcher is = new IndexSearcher(dir);   //3   
-
-    QueryParser parser = new QueryParser(Version.LUCENE_30, // 4
-                                         "contents",  //4
-                     new StandardAnalyzer(          //4
-                       Version.LUCENE_30));  //4
-    Query query = parser.parse(q);              //4   
+	Directory dir = FSDirectory.open(  FileSystems.getDefault().getPath( indexDir)); //3
+	IndexReader ireader = DirectoryReader.open(dir);
+    IndexSearcher is = new IndexSearcher(ireader);   //3   
+    Analyzer analyzer = new StandardAnalyzer();
+    analyzer.setVersion(Version.LUCENE_5_2_1);
+    
+    
+    QueryParser parser = new QueryParser( "contents",analyzer );  //4
+    //Query query = parser.parse("Recipient AND understands AND that AND although");   //per cercare co espressioni logiche complesse  
+    Query query = new TermQuery(new Term("filename", "apache1.0.txt"));                   //per cercare una singola paroa 
     long start = System.currentTimeMillis();
     TopDocs hits = is.search(query, 10); //5
     long end = System.currentTimeMillis();
 
-    System.err.println("Found " + hits.totalHits +   //6  
-      " document(s) (in " + (end - start) +        // 6
-      " milliseconds) that matched query '" +     // 6
-      q + "':");                                   // 6
+    System.err.println("Found " + hits.totalHits +   // 6  
+      " document(s) (in " + (end - start) +          // 6
+      " milliseconds) that matched query '" +        // 6
+      q + "':");                                     // 6
 
     for(ScoreDoc scoreDoc : hits.scoreDocs) {
       Document doc = is.doc(scoreDoc.doc);               //7      
       System.out.println(doc.get("fullpath"));  //8  
     }
-
-    is.close();                                //9
   }
 }
 
