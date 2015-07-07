@@ -15,17 +15,18 @@ package lia.common;
  * See the License for the specific lan      
 */
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileSystems;
+
+import org.apache.lucene.document.Document;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Directory;
-
-import java.io.IOException;
-import java.io.File;
+import org.apache.lucene.store.FSDirectory;
 
 public class TestUtil {
   public static boolean hitsIncludeTitle(IndexSearcher searcher, TopDocs hits, String title)
@@ -41,7 +42,8 @@ public class TestUtil {
   }
 
   public static int hitCount(IndexSearcher searcher, Query query) throws IOException {
-    return searcher.search(query, 1).totalHits;
+	  TopDocs result = searcher.search(query, 1);
+	  return result.totalHits;
   }
 
   public static int hitCount(IndexSearcher searcher, Query query, Filter filter) throws IOException {
@@ -62,7 +64,8 @@ public class TestUtil {
   
   public static Directory getBookIndexDirectory() throws IOException {
     // The build.xml ant script sets this property for us:
-    return FSDirectory.open(new File(System.getProperty("index.dir")));
+    //return FSDirectory.open(  FileSystems.getDefault().getPath( System.getProperty("index.dir")));
+    return   FSDirectory.open(  FileSystems.getDefault().getPath("indexes/Searching"));
   }
 
   public static void rmDir(File dir) throws IOException {

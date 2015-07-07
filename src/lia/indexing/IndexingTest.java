@@ -71,16 +71,17 @@ public class IndexingTest extends TestCase {
                         Field.Index.ANALYZED));
       writer.addDocument(doc);
     }
+    writer.forceMergeDeletes();
     writer.close();
   }
 
   private IndexWriter getWriter() throws IOException {            // 2
-  //  return new IndexWriter(directory, new WhitespaceAnalyzer(),   // 2
-  //                         IndexWriter.MaxFieldLength.UNLIMITED); // 2
     IndexWriter out = null;
-    Analyzer analyzer = new StandardAnalyzer();
+    Analyzer analyzer = new LimitTokenCountAnalyzer(new WhitespaceAnalyzer(),6);
+    //Analyzer analyzer = new WhitespaceAnalyzer();
     analyzer.setVersion(Version.LUCENE_5_2_1); 
     IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
+    iwConfig.setInfoStream(System.err);
     out = new IndexWriter(directory, iwConfig);           //3
     return out;
     
@@ -127,7 +128,7 @@ public class IndexingTest extends TestCase {
     assertEquals(2, writer.numDocs()); //A
     writer.deleteDocuments(new Term("id", "1"));  //B
     writer.commit();
-    assertTrue(writer.hasDeletions());    //1
+    assertTrue(writer.hasDeletions());    //1  anche dopo la commit l index ha documents marcati per deletion!!  maxDoc != numDocs. Usa writer.forceMergeDeletes() per eliminate i delete docs dall index
     assertEquals(2, writer.maxDoc());    //2
     assertEquals(1, writer.numDocs());   //2   
     writer.close();
@@ -136,10 +137,15 @@ public class IndexingTest extends TestCase {
   public void testDeleteAfterOptimize() throws IOException {
     IndexWriter writer = getWriter();
     assertEquals(2, writer.numDocs());
+    assertFalse(writer.hasDeletions());
     writer.deleteDocuments(new Term("id", "1"));
-  
-    //writer.optimize();                //3
+    writer.prepareCommit();
     writer.commit();
+   
+    //writer.optimize();                //3
+    writer.forceMergeDeletes();
+    
+    
     assertFalse(writer.hasDeletions());
     assertEquals(1, writer.maxDoc());  //C
     assertEquals(1, writer.numDocs()); //C    
@@ -157,15 +163,16 @@ public class IndexingTest extends TestCase {
 
 
   public void testUpdate() throws IOException {
-
-    assertEquals(1, getHitCount("city", "Amsterdam"));
-
     IndexWriter writer = getWriter();
-
+    assertEquals(1, getHitCount("city", "Amsterdam"));//C 
+    //Document #1 ha Field city = Amsterdam
+    //Sotto costrisco un nuovo Document con Field city = Den Haag e poi faccio l'update dell index.
     Document doc = new Document();                   //A            
-    doc.add(new Field("id", "1",
+    doc.add(new Field("id", "11",
                       Field.Store.YES,
                       Field.Index.NOT_ANALYZED));    //A
+    
+    
     doc.add(new Field("country", "Netherlands",
                       Field.Store.YES,
                       Field.Index.NO));              //A  
@@ -173,16 +180,18 @@ public class IndexingTest extends TestCase {
                       "Den Haag has a lot of museums",
                       Field.Store.NO,
                       Field.Index.ANALYZED));       //A
+
     doc.add(new Field("city", "Den Haag",
-                      Field.Store.YES,
-                      Field.Index.ANALYZED));       //A
+            Field.Store.YES,
+            Field.Index.ANALYZED));       //A
 
-    writer.updateDocument(new Term("id", "1"),       //B
-                          doc);                      //B
+    writer.updateDocument(new Term("id", "1"),   doc);     //B
+    writer.commit();                                     
     writer.close();
-
+    System.out.println("dddd");
     assertEquals(0, getHitCount("city", "Amsterdam"));//C   
     assertEquals(1, getHitCount("city", "Haag"));     //D  
+
   }
 
   /*
@@ -196,20 +205,15 @@ public class IndexingTest extends TestCase {
 
     assertEquals(1, getHitCount("contents", "bridges"));  //1
 
-    Analyzer analyzer = new LimitTokenCountAnalyzer(new WhitespaceAnalyzer(),1);
+    Analyzer analyzer = new LimitTokenCountAnalyzer(new WhitespaceAnalyzer(),1000);
     analyzer.setVersion(Version.LUCENE_5_2_1); 
     IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
    
-    IndexWriter out = new IndexWriter(directory, iwConfig);           //3
+    IndexWriter writer = new IndexWriter(directory, iwConfig);           //3
     
+   // IndexWriter writer = new IndexWriter(directory, new WhitespaceAnalyzer(), //2
+   //                                     new IndexWriter.MaxFieldLength(1)); //2
     
-    
-    MaxFieldLength fieldLength = new MaxFieldLength(256);
-    
-    
-    
-    IndexWriter writer = new IndexWriter(directory, new WhitespaceAnalyzer(), //2
-                                         new IndexWriter.MaxFieldLength(1)); //2
     Document doc = new Document();                        // 3
     doc.add(new Field("contents",
                       "these bridges can't be found",    // 3

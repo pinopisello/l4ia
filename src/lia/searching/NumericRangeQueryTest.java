@@ -16,19 +16,21 @@ package lia.searching;
 */
 
 import junit.framework.TestCase;
-
 import lia.common.TestUtil;
 
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 
 // From chapter 3
 public class NumericRangeQueryTest extends TestCase {
   public void testInclusive() throws Exception {
     Directory dir = TestUtil.getBookIndexDirectory();
-    IndexSearcher searcher = new IndexSearcher(dir);
+    IndexReader ireader = DirectoryReader.open(dir);
+    IndexSearcher searcher = new IndexSearcher(ireader);
     // pub date of TTC was September 2006
     NumericRangeQuery query = NumericRangeQuery.newIntRange("pubmonth",
                                                             200605,
@@ -37,19 +39,21 @@ public class NumericRangeQueryTest extends TestCase {
                                                             true);
 
     TopDocs matches = searcher.search(query, 10);
-    /*
+    
     for(int i=0;i<matches.totalHits;i++) {
       System.out.println("match " + i + ": " + searcher.doc(matches.scoreDocs[i].doc).get("author"));
     }
-    */
+    
     assertEquals(1, matches.totalHits);
-    searcher.close();
+    //searcher.close();
     dir.close();
   }
 
   public void testExclusive() throws Exception {
     Directory dir = TestUtil.getBookIndexDirectory();
-    IndexSearcher searcher = new IndexSearcher(dir);
+    IndexReader ireader = DirectoryReader.open(dir);
+    IndexSearcher searcher = new IndexSearcher(ireader);
+
 
     // pub date of TTC was September 2006
     NumericRangeQuery query = NumericRangeQuery.newIntRange("pubmonth",
@@ -59,7 +63,7 @@ public class NumericRangeQueryTest extends TestCase {
                                                             false);
     TopDocs matches = searcher.search(query, 10);
     assertEquals(0, matches.totalHits);
-    searcher.close();
+   // searcher.close();
     dir.close();
   }
 

@@ -18,6 +18,8 @@ package lia.extsearch.collector;
 import junit.framework.TestCase;
 import lia.common.TestUtil;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
@@ -32,7 +34,8 @@ public class CollectorTest extends TestCase {
   public void testCollecting() throws Exception {
     Directory dir = TestUtil.getBookIndexDirectory();
     TermQuery query = new TermQuery(new Term("contents", "junit"));
-    IndexSearcher searcher = new IndexSearcher(dir);
+    IndexReader ireader = DirectoryReader.open(dir);
+    IndexSearcher searcher = new IndexSearcher(ireader);
 
     BookLinkCollector collector = new BookLinkCollector();
     searcher.search(query, collector);
@@ -44,7 +47,7 @@ public class CollectorTest extends TestCase {
     TopDocs hits = searcher.search(query, 10);
     TestUtil.dumpHits(searcher, hits);
 
-    searcher.close();
+    //searcher.close();
     dir.close();
   }
 }

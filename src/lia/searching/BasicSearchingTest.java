@@ -16,26 +16,31 @@ package lia.searching;
 */
 
 import junit.framework.TestCase;
-
 import lia.common.TestUtil;
 
-import org.apache.lucene.analysis.SimpleAnalyzer;
+import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.store.Directory;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queryParser.QueryParser;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.Version;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.Directory;
 
 // From chapter 3
+
+
+//Attenzione :crea indice a partire da /Users/glocon/Miei/local_git/nike_repo/Lucene/l4ia/data
+//invocando CreateTestIndex.java /Users/glocon/Miei/local_git/nike_repo/Lucene/l4ia/data indexes/Searching
 public class BasicSearchingTest extends TestCase {
 
   public void testTerm() throws Exception {
     Directory dir = TestUtil.getBookIndexDirectory(); //A
-    IndexSearcher searcher = new IndexSearcher(dir);  //B
+    IndexReader ireader = DirectoryReader.open(dir);
+    IndexSearcher searcher = new IndexSearcher(ireader);  //B
 
     Term t = new Term("subject", "ant");
     Query query = new TermQuery(t);
@@ -49,7 +54,7 @@ public class BasicSearchingTest extends TestCase {
                  "JUnit in Action, Second Edition",                  //D
                  2, docs.totalHits);                                 //D
 
-    searcher.close();
+    //searcher.close();
     dir.close();
   }
 
@@ -62,7 +67,8 @@ public class BasicSearchingTest extends TestCase {
 
   public void testKeyword() throws Exception {
     Directory dir = TestUtil.getBookIndexDirectory();
-    IndexSearcher searcher = new IndexSearcher(dir);
+    IndexReader ireader = DirectoryReader.open(dir);
+    IndexSearcher searcher = new IndexSearcher(ireader);
 
     Term t = new Term("isbn", "9781935182023");
     Query query = new TermQuery(t);
@@ -70,19 +76,21 @@ public class BasicSearchingTest extends TestCase {
     assertEquals("JUnit in Action, Second Edition",
                  1, docs.totalHits);
 
-    searcher.close();
+   // searcher.close();
     dir.close();
   }
 
   public void testQueryParser() throws Exception {
-    Directory dir = TestUtil.getBookIndexDirectory();
-    IndexSearcher searcher = new IndexSearcher(dir);
-
-    QueryParser parser = new QueryParser(Version.LUCENE_30,      //A
+	    Directory dir = TestUtil.getBookIndexDirectory();
+	    IndexReader ireader = DirectoryReader.open(dir);
+	    IndexSearcher searcher = new IndexSearcher(ireader);
+	    
+    QueryParser parser = new QueryParser(    						  //A
                                          "contents",                  //A
                                          new SimpleAnalyzer());       //A
 
     Query query = parser.parse("+JUNIT +ANT -MOCK");                  //B
+    //Query query = parser.parse("+Tapestry +interface +pippo"); 
     TopDocs docs = searcher.search(query, 10);
     assertEquals(1, docs.totalHits);
     Document d = searcher.doc(docs.scoreDocs[0].doc);
@@ -94,7 +102,7 @@ public class BasicSearchingTest extends TestCase {
                  "JUnit in Action, Second Edition",
                  2, docs.totalHits);
 
-    searcher.close();
+    //searcher.close();
     dir.close();
   }
   /*

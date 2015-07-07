@@ -15,20 +15,24 @@ package lia.indexing;
  * See the License for the specific lan      
 */
 
-import java.util.Date;
-import java.util.Calendar;
 import java.io.IOException;
+import java.util.Calendar;
+import java.util.Date;
 
-import org.apache.lucene.document.DateTools;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.NumericField;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.WhitespaceAnalyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.document.DateTools;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoubleField;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.FloatField;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.Version;
 
 // From chapter 2
@@ -77,10 +81,11 @@ class Fragments {
 
   public void ramDirExample() throws Exception {
     Analyzer analyzer = new WhitespaceAnalyzer();
-    // START
+    analyzer.setVersion(Version.LUCENE_5_2_1); 
+    IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
     Directory ramDir = new RAMDirectory();
-    IndexWriter writer = new IndexWriter(ramDir, analyzer,    
-                                IndexWriter.MaxFieldLength.UNLIMITED);
+    IndexWriter writer = new IndexWriter(ramDir, iwConfig);    
+                                
     // END
   }
 
@@ -88,27 +93,22 @@ class Fragments {
     Directory otherDir = null;
 
     // START
-    Directory ramDir = new RAMDirectory(otherDir);
+    Directory ramDir = new RAMDirectory(null);
     // END
   }
 
   public void addIndexes() throws Exception {
-    Directory otherDir = null;
-    Directory ramDir = null;
-    Analyzer analyzer = null;
-
-    // START
-    IndexWriter writer = new IndexWriter(otherDir, analyzer,
-                                         IndexWriter.MaxFieldLength.UNLIMITED);
-    writer.addIndexesNoOptimize(new Directory[] {ramDir});
+    IndexWriter writer = new IndexWriter(new RAMDirectory(),  new IndexWriterConfig(new WhitespaceAnalyzer()));    
+   
+    writer.addIndexes(new Directory[] {new RAMDirectory()});
     // END
   }
 
   public void docBoostMethod() throws IOException {
 
     Directory dir = new RAMDirectory();
-    IndexWriter writer = new IndexWriter(dir, new StandardAnalyzer(Version.LUCENE_30), IndexWriter.MaxFieldLength.UNLIMITED);
-
+    IndexWriter writer = new IndexWriter(new RAMDirectory(),  new IndexWriterConfig(new WhitespaceAnalyzer()));    
+    
     // START
     Document doc = new Document();
     String senderEmail = getSenderEmail();
@@ -129,9 +129,9 @@ class Fragments {
                       Field.Index.ANALYZED));
     String lowerDomain = getSenderDomain().toLowerCase();
     if (isImportant(lowerDomain)) {
-      doc.setBoost(1.5F);     //1
+     // doc.setBoost(1.5F);     //1
     } else if (isUnimportant(lowerDomain)) {
-      doc.setBoost(0.1F);    //2 
+    //  doc.setBoost(0.1F);    //2 
     }
     writer.addDocument(doc);
     // END
@@ -159,28 +159,27 @@ class Fragments {
   public void numberField() {
     Document doc = new Document();
     // START
-    doc.add(new NumericField("price").setDoubleValue(19.99));
+    doc.add(  new FloatField("price",19.99f,Store.YES));
     // END
   }
 
   public void numberTimestamp() {
     Document doc = new Document();
     // START
-    doc.add(new NumericField("timestamp")
-             .setLongValue(new Date().getTime()));
+    doc.add(new LongField("timestamp",new Date().getTime(),Store.YES));
     // END
 
     // START
-    doc.add(new NumericField("day")
-            .setIntValue((int) (new Date().getTime()/24/3600)));
+    doc.add(new LongField("day",new Date().getTime()/24/3600,Store.YES));
+           
     // END
 
     Date date = new Date();
     // START
     Calendar cal = Calendar.getInstance();
     cal.setTime(date);
-    doc.add(new NumericField("dayOfMonth")
-            .setIntValue(cal.get(Calendar.DAY_OF_MONTH)));
+    doc.add(new IntField("dayOfMonth",cal.get(Calendar.DAY_OF_MONTH),Store.YES));
+         
     // END
   }
 
@@ -188,9 +187,8 @@ class Fragments {
     Directory dir = null;
     Analyzer analyzer = null;
     // START
-    IndexWriter writer = new IndexWriter(dir, analyzer,
-                                         true, IndexWriter.MaxFieldLength.UNLIMITED);
-    writer.setInfoStream(System.out);
+    IndexWriter writer = new IndexWriter(new RAMDirectory(),  new IndexWriterConfig(new WhitespaceAnalyzer()).setInfoStream(System.out)  );    
+  
     // END
   }
 
@@ -204,18 +202,16 @@ class Fragments {
 
   public void numericField() throws Exception {
     Document doc = new Document();
-    NumericField price = new NumericField("price");
-    price.setDoubleValue(19.99);
+    DoubleField price = new DoubleField("price",19.99d,Store.YES);
     doc.add(price);
 
-    NumericField timestamp = new NumericField("timestamp");
-    timestamp.setLongValue(new Date().getTime());
+    LongField timestamp = new LongField("timestamp",new Date().getTime(),Store.YES);
     doc.add(timestamp);
 
     Date b = new Date();
-    NumericField birthday = new NumericField("birthday");
     String v = DateTools.dateToString(b, DateTools.Resolution.DAY);
-    birthday.setIntValue(Integer.parseInt(v));
+    IntField birthday = new IntField("birthday",Integer.parseInt(v),Store.YES);
+
     doc.add(birthday);
   }
 

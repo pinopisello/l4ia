@@ -15,19 +15,25 @@ package lia.searching;
  * See the License for the specific lan      
 */
 
-import org.apache.lucene.analysis.SimpleAnalyzer;
+import java.io.File;
+import java.nio.file.FileSystems;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.queryParser.QueryParser;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.Version;
-
-import java.io.File;
 
 // From chapter 3
 public class Explainer {
@@ -39,15 +45,19 @@ public class Explainer {
 
     String indexDir = args[0];
     String queryExpression = args[1];
-
-    Directory directory = FSDirectory.open(new File(indexDir));
-    QueryParser parser = new QueryParser(Version.LUCENE_30,
-                                         "contents", new SimpleAnalyzer());
+    File dirPath = new File(indexDir);
+    Directory directory  = FSDirectory.open( FileSystems.getDefault().getPath(dirPath.getAbsolutePath()));
+    //Directory directory = FSDirectory.open(new File(indexDir));
+    
+   
+    
+    QueryParser parser = new QueryParser( "contents", new SimpleAnalyzer());
     Query query = parser.parse(queryExpression);
 
     System.out.println("Query: " + queryExpression);
-
-    IndexSearcher searcher = new IndexSearcher(directory);
+    
+    IndexReader ireader = DirectoryReader.open(directory);
+    IndexSearcher searcher = new IndexSearcher(ireader);
     TopDocs topDocs = searcher.search(query, 10);
 
     for (ScoreDoc match : topDocs.scoreDocs) {
@@ -59,7 +69,7 @@ public class Explainer {
       System.out.println(doc.get("title"));
       System.out.println(explanation.toString());  //#B
     }
-    searcher.close();
+    
     directory.close();
   }
 }

@@ -16,9 +16,10 @@ package lia.searching;
 */
 
 import junit.framework.TestCase;
-
 import lia.common.TestUtil;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermRangeQuery;
@@ -28,17 +29,19 @@ import org.apache.lucene.store.Directory;
 public class TermRangeQueryTest extends TestCase {
   public void testTermRangeQuery() throws Exception {
     Directory dir = TestUtil.getBookIndexDirectory();
-    IndexSearcher searcher = new IndexSearcher(dir);
-    TermRangeQuery query = new TermRangeQuery("title2", "d", "j", true, true);
+    IndexReader ireader = DirectoryReader.open(dir);
+    IndexSearcher searcher = new IndexSearcher(ireader);
+    
+    TermRangeQuery query =  TermRangeQuery.newStringRange("title2", "e", "j", true, true);
 
     TopDocs matches = searcher.search(query, 100);
-    /*
+    
     for(int i=0;i<matches.totalHits;i++) {
       System.out.println("match " + i + ": " + searcher.doc(matches.scoreDocs[i].doc).get("title2"));
     }
-    */
+    
     assertEquals(3, matches.totalHits);
-    searcher.close();
+    //searcher.close();
     dir.close();
   }
 }

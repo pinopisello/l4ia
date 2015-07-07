@@ -16,21 +16,25 @@ package lia.searching;
 */
 
 import junit.framework.TestCase;
-
 import lia.common.TestUtil;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 
 // From chapter 3
 public class PrefixQueryTest extends TestCase {
   public void testPrefix() throws Exception {
     Directory dir = TestUtil.getBookIndexDirectory();
-    IndexSearcher searcher = new IndexSearcher(dir);
+    IndexReader ireader = DirectoryReader.open(dir);
+    IndexSearcher searcher = new IndexSearcher(ireader);
+
 
     Term term = new Term("category",                              //#A
                          "/technology/computers/programming");    //#A
@@ -38,12 +42,24 @@ public class PrefixQueryTest extends TestCase {
 
     TopDocs matches = searcher.search(query, 10);                 //#A
     int programmingAndBelow = matches.totalHits;
-
+    System.out.println("Programming and below:   ");
+    for(int i=0;i<matches.totalHits;i++) {
+    	Document doc = searcher.doc(matches.scoreDocs[i].doc);
+        System.out.println("match " + i + ": " + doc.get("category")+ " | "+ doc.get("title"));
+      }
+    
+    
+    System.out.println("Just /technology/computers/programming:   ");    
     matches = searcher.search(new TermQuery(term), 10);           //#B
     int justProgramming = matches.totalHits;
-
+    System.out.println("Just Programming:   ");
+    for(int i=0;i<matches.totalHits;i++) {
+    	Document doc = searcher.doc(matches.scoreDocs[i].doc);
+        System.out.println("match " + i + ": " + doc.get("category")+ " | "+ doc.get("title"));
+      }
+    
     assertTrue(programmingAndBelow > justProgramming);
-    searcher.close();
+    //searcher.close();
     dir.close();
   }
 }

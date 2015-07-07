@@ -15,18 +15,19 @@ package lia.extsearch.collector;
  * See the License for the specific lan      
 */
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.FieldCache;
-
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Scorer;
+
 // From chapter 6
-public class BookLinkCollector extends Collector {
+public class BookLinkCollector implements Collector {
   private Map<String,String> documents = new HashMap<String,String>();
   private Scorer scorer;
   private String[] urls;
@@ -41,8 +42,8 @@ public class BookLinkCollector extends Collector {
   }
 
   public void setNextReader(IndexReader reader, int docBase) throws IOException {
-    urls = FieldCache.DEFAULT.getStrings(reader, "url");           // #B
-    titles = FieldCache.DEFAULT.getStrings(reader, "title2");      // #B
+   // urls = FieldCacheSource.DEFAULT.getStrings(reader, "url");           // #B
+   // titles = FieldCacheSource.DEFAULT.getStrings(reader, "title2");      // #B
   }
 
   public void collect(int docID) {
@@ -59,6 +60,19 @@ public class BookLinkCollector extends Collector {
   public Map<String,String> getLinks() {
     return Collections.unmodifiableMap(documents);
   }
+
+@Override
+public LeafCollector getLeafCollector(LeafReaderContext context)
+		throws IOException {
+	// TODO Auto-generated method stub
+	return null;
+}
+
+@Override
+public boolean needsScores() {
+	// TODO Auto-generated method stub
+	return false;
+}
 }
 
 /*

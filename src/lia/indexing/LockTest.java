@@ -15,17 +15,19 @@ package lia.indexing;
  * See the License for the specific lan      
 */
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileSystems;
+
+import junit.framework.TestCase;
+import lia.common.TestUtil;
+
+import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.analysis.SimpleAnalyzer;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.LockObtainFailedException;
-
-import junit.framework.TestCase;
-import java.io.IOException;
-import java.io.File;
-
-import lia.common.TestUtil;
 
 // From chapter 2
 public class LockTest extends TestCase {
@@ -34,24 +36,29 @@ public class LockTest extends TestCase {
   private File indexDir;
 
   protected void setUp() throws IOException {
-    indexDir = new File(
-      System.getProperty("java.io.tmpdir", "tmp") +
-      System.getProperty("file.separator") + "index");
-    dir = FSDirectory.open(indexDir);
+    indexDir = new File("indexes/Indexing");
+    dir = FSDirectory.open( FileSystems.getDefault().getPath(indexDir.getAbsolutePath()));
   }
 
   public void testWriteLock() throws IOException {
+	
+	IndexWriterConfig iwconfig1=  new IndexWriterConfig(new SimpleAnalyzer()) ;
+	iwconfig1.setInfoStream(System.out);
+	IndexWriterConfig iwconfig2=  new IndexWriterConfig(new SimpleAnalyzer()) ;
+	iwconfig2.setInfoStream(System.out);
 
-    IndexWriter writer1 = new IndexWriter(dir, new SimpleAnalyzer(),
-                                          IndexWriter.MaxFieldLength.UNLIMITED);
+    IndexWriter writer1 = new IndexWriter(dir,iwconfig1);
+    boolean  islocked = writer1.isLocked(dir);
+    //writer1.close();
+    //islocked = writer1.isLocked(dir);
     IndexWriter writer2 = null;
     try {
-      writer2 = new IndexWriter(dir, new SimpleAnalyzer(),
-                                IndexWriter.MaxFieldLength.UNLIMITED);
+      writer2 = new IndexWriter(dir, iwconfig2);//fallisce qui!!
+                               
       fail("We should never reach this point");
     }
     catch (LockObtainFailedException e) {
-      // e.printStackTrace();  // #A
+       e.printStackTrace();  // #A
     }
     finally {
       writer1.close();

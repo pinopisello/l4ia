@@ -18,24 +18,38 @@ package lia.searching;
 import org.apache.lucene.util.Version;
 import org.apache.lucene.store.*;
 import org.apache.lucene.index.*;
+import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.search.*;
 import org.apache.lucene.document.*;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.miscellaneous.LimitTokenCountAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 
 import junit.framework.TestCase;
 
 // From chapter 3
+//Non si puo piu testare dato che  IndexWriter.getReader() non eiste piu!!
+
+
 public class NearRealTimeTest extends TestCase {
+	
+	/*
   public void testNearRealTime() throws Exception {
     Directory dir = new RAMDirectory();
-    IndexWriter writer = new IndexWriter(dir, new StandardAnalyzer(Version.LUCENE_30), IndexWriter.MaxFieldLength.UNLIMITED);
-    for(int i=0;i<10;i++) {
+    Analyzer analyzer = new WhitespaceAnalyzer();
+    IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
+    iwConfig.setOpenMode(OpenMode.CREATE);
+    iwConfig.setInfoStream(System.err);
+    IndexWriter writer = new IndexWriter(dir, iwConfig);           //3
+    
+     for(int i=0;i<10;i++) {
       Document doc = new Document();
       doc.add(new Field("id", ""+i, Field.Store.NO, Field.Index.NOT_ANALYZED_NO_NORMS));
       doc.add(new Field("text", "aaa", Field.Store.NO, Field.Index.ANALYZED));
       writer.addDocument(doc);
     }
-    IndexReader reader = writer.getReader();                 // #1
+    Object reader = writer.getReader();                 // #1
     IndexSearcher searcher = new IndexSearcher(reader);      // #A
 
     Query query = new TermQuery(new Term("text", "aaa"));
@@ -69,7 +83,7 @@ public class NearRealTimeTest extends TestCase {
 
     newReader.close();
     writer.close();
-  }
+  }*/
 }
 
 /*

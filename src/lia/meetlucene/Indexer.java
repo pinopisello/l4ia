@@ -74,7 +74,7 @@ public class Indexer {
     Directory dir = FSDirectory.open(  FileSystems.getDefault().getPath( indexDir));
    
     Analyzer analyzer = new StandardAnalyzer();
-    analyzer.setVersion(Version.LUCENE_5_2_1);
+    analyzer.setVersion(Version.LATEST);
     
     IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
     writer = new IndexWriter(dir, iwConfig);           //3

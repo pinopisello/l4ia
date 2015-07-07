@@ -15,24 +15,31 @@ package lia.common;
  * See the License for the specific lan      
 */
 
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.NumericField;
-import org.apache.lucene.document.DateTools;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.util.Version;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.Properties;
+import java.nio.file.FileSystems;
+import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.ArrayList;
-import java.text.ParseException;
+import java.util.Properties;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.miscellaneous.LimitTokenCountAnalyzer;
+import org.apache.lucene.document.DateTools;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexWriterConfig.OpenMode;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.Version;
 
 public class CreateTestIndex {
   
@@ -51,7 +58,6 @@ public class CreateTestIndex {
     String author = props.getProperty("author");     //2
     String url = props.getProperty("url");           //2
     String subject = props.getProperty("subject");   //2
-
     String pubmonth = props.getProperty("pubmonth"); //2
 
     System.out.println(title + "\n" + author + "\n" + subject + "\n" + pubmonth + "\n" + category + "\n---------");
@@ -95,18 +101,25 @@ public class CreateTestIndex {
                       Field.Index.ANALYZED,          // 3  //4
                       Field.TermVector.WITH_POSITIONS_OFFSETS)); // 3  //4
 
-    doc.add(new NumericField("pubmonth",          // 3
-                             Field.Store.YES,     // 3
-                             true).setIntValue(Integer.parseInt(pubmonth)));   // 3
+    
+    doc.add( new IntField("pubmonth",Integer.parseInt(pubmonth),Store.YES));
+    
+   //doc.add(new NumericField("pubmonth",          // 3
+    //                         Field.Store.YES,     // 3
+   //                          true).setIntValue(Integer.parseInt(pubmonth)));   // 3
 
     Date d; // 3
     try { // 3
       d = DateTools.stringToDate(pubmonth); // 3
     } catch (ParseException pe) { // 3
       throw new RuntimeException(pe); // 3
-    }                                             // 3
-    doc.add(new NumericField("pubmonthAsDay")      // 3
-                 .setIntValue((int) (d.getTime()/(1000*3600*24))));   // 3
+    }          
+    
+    // 3
+    
+    doc.add( new LongField("pubmonthAsDay",d.getTime()/(1000*3600*24),Store.YES));
+   // doc.add(new NumericField("pubmonthAsDay")      // 3
+    //             .setIntValue((int) (d.getTime()/(1000*3600*24))));   // 3
 
     for(String text : new String[] {title, subject, author, category}) {           // 3 // 5
       doc.add(new Field("contents", text,                             // 3 // 5
@@ -138,9 +151,9 @@ public class CreateTestIndex {
     }
   }
 
-  private static class MyStandardAnalyzer extends StandardAnalyzer {  // 6
-    public MyStandardAnalyzer(Version matchVersion) {                 // 6
-      super(matchVersion);                                            // 6
+ /* private static class MyStandardAnalyzer extends StandardAnalyzer {  // 6
+    public MyStandardAnalyzer( ) {                 // 6
+      super();                                            // 6
     }                                                                 // 6
     public int getPositionIncrementGap(String field) {                // 6
       if (field.equals("contents")) {                                 // 6
@@ -149,7 +162,7 @@ public class CreateTestIndex {
         return 0;                                                     // 6
       }
     }
-  }
+  }*/
 
   public static void main(String[] args) throws IOException {
     String dataDir = args[0];
@@ -157,11 +170,22 @@ public class CreateTestIndex {
     List<File> results = new ArrayList<File>();
     findFiles(results, new File(dataDir));
     System.out.println(results.size() + " books to index");
-    Directory dir = FSDirectory.open(new File(indexDir));
-    IndexWriter w = new IndexWriter(dir,
-                                    new MyStandardAnalyzer(Version.LUCENE_30),
-                                    true,
-                                    IndexWriter.MaxFieldLength.UNLIMITED);
+    Directory dir = FSDirectory.open(  FileSystems.getDefault().getPath(indexDir));
+    //Directory dir = FSDirectory.open(new File(indexDir));
+    
+   
+    Analyzer analyzer = new LimitTokenCountAnalyzer(new WhitespaceAnalyzer(),6);
+    //Analyzer analyzer = new WhitespaceAnalyzer();
+    analyzer.setVersion(Version.LUCENE_5_2_1); 
+    IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
+    iwConfig.setOpenMode(OpenMode.CREATE);
+    iwConfig.setInfoStream(System.err);
+    IndexWriter w = new IndexWriter(dir, iwConfig);           //3
+    
+   // IndexWriter w = new IndexWriter(dir,
+    //                                new MyStandardAnalyzer(Version.LUCENE_30),
+    //                                true,
+    //                                IndexWriter.MaxFieldLength.UNLIMITED);
     for(File file : results) {
       Document doc = getDocument(dataDir, file);
       w.addDocument(doc);
