@@ -15,37 +15,32 @@ package lia.extsearch.sorting;
  * See the License for the specific lan      
 */
 
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.FieldComparatorSource;
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.FieldCache;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.TermEnum;
-import org.apache.lucene.index.Term;
-
 import java.io.IOException;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.SortField;
+
 // From chapter 6
-public class DistanceComparatorSource
-  extends FieldComparatorSource {                 // #1
+public class DistanceComparatorSource  extends FieldComparatorSource { // #1 Extend FieldComparatorSource
   private int x;
   private int y;
 
-  public DistanceComparatorSource(int x, int y) { // #2
+  public DistanceComparatorSource(int x, int y) { // #2  Give constructor base location
     this.x = x;
     this.y = y;
   }
 
-  public FieldComparator newComparator(java.lang.String fieldName,   // #3
-                                       int numHits, int sortPos,   // #3
-                                       boolean reversed)   // #3
+  public FieldComparator newComparator(java.lang.String fieldName,   		// #3 Create comparator
+                                       int numHits, int sortPos,   			// #3
+                                       boolean reversed)   					// #3
     throws IOException {       // #3
-    return new DistanceScoreDocLookupComparator(fieldName,
-                                                numHits);
+    return new DistanceScoreDocLookupComparator(fieldName, numHits);
   }
 
-  private class DistanceScoreDocLookupComparator  // #4
-      extends FieldComparator {
+  private class DistanceScoreDocLookupComparator  extends FieldComparator {// #4
     private int[] xDoc, yDoc;                     // #5
     private float[] values;                       // #6
     private float bottom;                         // #7
@@ -57,10 +52,10 @@ public class DistanceComparatorSource
       this.fieldName = fieldName;
     }
 
-    public void setNextReader(IndexReader reader, int docBase) throws IOException {
-      xDoc = FieldCache.DEFAULT.getInts(reader, "x");  // #8
-      yDoc = FieldCache.DEFAULT.getInts(reader, "y");  // #8
-    }
+    //public void setNextReader(IndexReader reader, int docBase) throws IOException {
+   //   xDoc = FieldCache.DEFAULT.getInts(reader, "x");  // #8
+    //  yDoc = FieldCache.DEFAULT.getInts(reader, "y");  // #8
+   // }
 
     private float getDistance(int doc) {              // #9
       int deltax = xDoc[doc] - x;                     // #9
@@ -94,8 +89,21 @@ public class DistanceComparatorSource
     }                                                   // #14
 
     public int sortType() {
-      return SortField.CUSTOM;
+      return SortField.Type.CUSTOM.ordinal()  ;
     }
+
+	@Override
+	public void setTopValue(Object value) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public LeafFieldComparator getLeafComparator(LeafReaderContext context)
+			throws IOException {
+		// TODO Auto-generated method stub
+		return null;
+	}
   }
 
   public String toString() {

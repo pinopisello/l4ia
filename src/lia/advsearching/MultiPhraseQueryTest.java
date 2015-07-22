@@ -15,28 +15,35 @@ package lia.advsearching;
  * See the License for the specific lan      
 */
 
+import java.io.IOException;
+
 import junit.framework.TestCase;
-import lia.analysis.synonym.SynonymEngine;
 import lia.analysis.synonym.SynonymAnalyzer;
-import org.apache.lucene.queryParser.QueryParser;
-import org.apache.lucene.analysis.WhitespaceAnalyzer;
+import lia.analysis.synonym.SynonymEngine;
+
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Version;
-
-import java.io.IOException;
 
 // From chapter 5
 public class MultiPhraseQueryTest extends TestCase {
@@ -44,43 +51,48 @@ public class MultiPhraseQueryTest extends TestCase {
 
   protected void setUp() throws Exception {
     Directory directory = new RAMDirectory();
-    IndexWriter writer = new IndexWriter(directory,
-                                         new WhitespaceAnalyzer(),
-                                         IndexWriter.MaxFieldLength.UNLIMITED);
+    IndexWriterConfig iwConfig = new IndexWriterConfig(new WhitespaceAnalyzer());
+    iwConfig.setOpenMode(OpenMode.CREATE);
+    //iwConfig.setInfoStream(System.err);
+    IndexWriter writer = new IndexWriter(directory, iwConfig);   
+   
     Document doc1 = new Document();
-    doc1.add(new Field("field",
-              "the quick brown fox jumped over the lazy dog",
-              Field.Store.YES, Field.Index.ANALYZED));
+    doc1.add(new TextField("field",
+              "cacchio the quick brown fox jumped over the lazy dog",
+              Field.Store.YES));
     writer.addDocument(doc1);
     Document doc2 = new Document();
-    doc2.add(new Field("field",
-              "the fast fox hopped over the hound",
-              Field.Store.YES, Field.Index.ANALYZED));
+    doc2.add(new TextField("field",
+              "cavolo the fast fox hopped over the hound",
+              Field.Store.YES));
     writer.addDocument(doc2);
     writer.close();
-
-    searcher = new IndexSearcher(directory);
+    IndexReader ireader = DirectoryReader.open(directory);
+    searcher = new IndexSearcher(ireader);
   }
 
   public void testBasic() throws Exception {
+	  
+	//cerca per tutti i documents che hanno nel field "field" i terms "quick" o "fast" seguiti da "fox" [slop=0 per default!!]
     MultiPhraseQuery query = new MultiPhraseQuery();
-    query.add(new Term[] {                       // #A
+    query.add(new Term[] {                       // #A Any of these terms may be in first position to match 
         new Term("field", "quick"),              // #A
         new Term("field", "fast")                // #A
     });
-    query.add(new Term("field", "fox"));         // #B
-    System.out.println(query);
+    query.add(new Term("field", "fox"));         // #B Only one in second position
+    System.out.println(query);                   //Query => field:"(quick fast) fox"
 
     TopDocs hits = searcher.search(query, 10);
+    Document doc = searcher.doc(hits.scoreDocs[0].doc); //metcha "cavolo the fast fox hopped over the hound"
     assertEquals("fast fox match", 1, hits.totalHits);
 
-    query.setSlop(1);
-    hits = searcher.search(query, 10);
+    query.setSlop(1);							 //Query =>  field:"(quick fast) fox"~1
+    hits = searcher.search(query, 10);                 //metcha anche  "cacchio the quick brown fox jumped over the lazy dog" dato che slop = 1
     assertEquals("both match", 2, hits.totalHits);
   }
   /*
-#A Any of these terms may be in first position to match
-#B Only one in second position
+
+
   */
 
   public void testAgainstOR() throws Exception {
@@ -93,7 +105,7 @@ public class MultiPhraseQueryTest extends TestCase {
     fastFox.add(new Term("field", "fast"));
     fastFox.add(new Term("field", "fox"));
 
-    BooleanQuery query = new BooleanQuery();
+    BooleanQuery query = new BooleanQuery();         //cerca per "quick fox" e "fast fox" con slop 1 per la prima e 0 per la seconda
     query.add(quickFox, BooleanClause.Occur.SHOULD);
     query.add(fastFox, BooleanClause.Occur.SHOULD);
     TopDocs hits = searcher.search(query, 10);
@@ -110,13 +122,9 @@ public class MultiPhraseQueryTest extends TestCase {
         }
       };
 
-    Query q = new QueryParser(Version.LUCENE_30,
-                              "field",
-                              new SynonymAnalyzer(engine))
-      .parse("\"quick fox\"");
+    Query q = new QueryParser("field",new StandardAnalyzer()).parse("\"quick fox\"");
 
-    assertEquals("analyzed",
-        "field:\"(quick fast) fox\"", q.toString());
+    assertEquals("analyzed","field:\"(quick fast) fox\"", q.toString());
     assertTrue("parsed as MultiPhraseQuery", q instanceof MultiPhraseQuery);
   }
 

@@ -15,28 +15,34 @@ package lia.advsearching;
  * See the License for the specific lan      
 */
 
+import java.io.IOException;
+
+import lia.common.TestUtil;
+
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermFreqVector;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-import lia.common.TestUtil;
-import java.io.IOException;
-import java.io.File;
+import org.apache.lucene.util.BytesRef;
 
 // From chapter 5
 public class BooksLikeThis {
-
+	  
+	  
+	  
   public static void main(String[] args) throws IOException {
     Directory dir = TestUtil.getBookIndexDirectory();
-
-    IndexReader reader = IndexReader.open(dir);
+    IndexReader reader = DirectoryReader.open(dir);
     int numDocs = reader.maxDoc();
 
     BooksLikeThis blt = new BooksLikeThis(reader);
@@ -65,6 +71,11 @@ public class BooksLikeThis {
     searcher = new IndexSearcher(reader);
   }
 
+  
+  
+  
+  //trova tutti i docs simili al doc con lo specifico id.
+  //Simili vuol dire con author 
   public Document[] docsLike(int id, int max) throws IOException {
     Document doc = reader.document(id);
 
@@ -76,13 +87,18 @@ public class BooksLikeThis {
     }
     authorQuery.setBoost(2.0f);
 
-    TermFreqVector vector =                                        // #4
-        reader.getTermFreqVector(id, "subject");                   // #4
+    //Ritorna tutti i Terms per il campo field del doc 1d
+    Terms vector = reader.getTermVector(id, "subject");                   // #4
 
     BooleanQuery subjectQuery = new BooleanQuery();                // #4
-    for (String vecTerm : vector.getTerms()) {                      // #4
-      TermQuery tq = new TermQuery(                                // #4
-          new Term("subject", vecTerm));              // #4
+    
+    TermsEnum termsiterator = vector.iterator();
+    BytesRef currTerm = null;
+    
+    while ( (currTerm = termsiterator.next()) != null) {                      // #4
+    	String vecTermStr = currTerm.utf8ToString();
+    	TermQuery tq = new TermQuery(                                // #4
+          new Term("subject", vecTermStr));              // #4
       subjectQuery.add(tq, BooleanClause.Occur.SHOULD);            // #4
     }
 

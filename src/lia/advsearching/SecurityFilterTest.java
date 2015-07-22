@@ -18,16 +18,21 @@ package lia.advsearching;
 import junit.framework.TestCase;
 import lia.common.TestUtil;
 
-import org.apache.lucene.analysis.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryWrapperFilter;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 
@@ -38,34 +43,33 @@ public class SecurityFilterTest extends TestCase {
 
   protected void setUp() throws Exception {
     Directory directory = new RAMDirectory();
-    IndexWriter writer = new IndexWriter(directory,
-                                         new WhitespaceAnalyzer(),
-                                         IndexWriter.MaxFieldLength.UNLIMITED);
-
-    Document document = new Document();                  // 1
-    document.add(new Field("owner",                      // 1
-                           "elwood",                     // 1
-                           Field.Store.YES,              // 1
-                           Field.Index.NOT_ANALYZED));   // 1
-    document.add(new Field("keywords",                   // 1
-                           "elwood's sensitive info",    // 1
-                           Field.Store.YES,              // 1
-                           Field.Index.ANALYZED));       // 1
+    Analyzer analyzer = new WhitespaceAnalyzer();
+    IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
+    IndexWriter writer = new IndexWriter(directory, iwConfig);
+    IndexReader ireader = DirectoryReader.open(directory);
+    searcher = new IndexSearcher(ireader);
+    
+    
+    Document document = new Document();                  
+    document.add(new StringField("owner",                      
+                           "elwood",                    
+                           Field.Store.YES));   
+    document.add(new StringField("keywords",                   
+                           "elwood's sensitive info",    
+                           Field.Store.YES));       
     writer.addDocument(document);
 
-    document = new Document();                           // 2
-    document.add(new Field("owner",                      // 2
-                           "jake",                       // 2
-                           Field.Store.YES,              // 2
-                           Field.Index.NOT_ANALYZED));   // 2
-    document.add(new Field("keywords",                   // 2
-                           "jake's sensitive info",      // 2
-                           Field.Store.YES,              // 2
-                           Field.Index.ANALYZED));       // 2
+    document = new Document();                          
+    document.add(new StringField("owner",                      
+                           "jake",                      
+                           Field.Store.YES));  
+    document.add(new StringField("keywords",                  
+                           "jake's sensitive info",      
+                           Field.Store.YES));       
     writer.addDocument(document);
 
     writer.close();
-    searcher = new IndexSearcher(directory);
+    
   }
   /*
 #1 Elwood
@@ -73,17 +77,13 @@ public class SecurityFilterTest extends TestCase {
   */
 
   public void testSecurityFilter() throws Exception {
-    TermQuery query = new TermQuery(                   //#1
-                        new Term("keywords", "info")); //#1
+    TermQuery query = new TermQuery(  new Term("keywords", "info")); 
 
-    assertEquals("Both documents match",               //#2
-                 2,                                    //#2
-                 TestUtil.hitCount(searcher, query));  //#2
+    assertEquals("Both documents match",  2,  TestUtil.hitCount(searcher, query));  
 
-    Filter jakeFilter = new QueryWrapperFilter(        //#3
-      new TermQuery(new Term("owner", "jake")));       //#3
+    Filter jakeFilter = new QueryWrapperFilter(   new TermQuery(new Term("owner", "jake")));     
 
-    TopDocs hits = searcher.search(query, jakeFilter, 10);
+    TopDocs hits = searcher.search(query, jakeFilter, 10);  //query ritorna 2 docs, jakeFilter solo 1 => searcher ritornera' solo 1!
     assertEquals(1, hits.totalHits);                   //#4
     assertEquals("elwood is safe",                     //#4
                  "jake's sensitive info",              //#4

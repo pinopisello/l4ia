@@ -15,22 +15,29 @@ package lia.advsearching;
  * See the License for the specific lan      
 */
 
+import junit.framework.TestCase;
+
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MultiSearcher;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-import junit.framework.TestCase;
 
 // From chapter 5
 public class MultiSearcherTest extends TestCase {
-  private IndexSearcher[] searchers;
+  private IndexSearcher searcher;
+  private MultiReader multireader;
 
   public void setUp() throws Exception {
     String[] animals = { "aardvark", "beaver", "coati",
@@ -42,53 +49,46 @@ public class MultiSearcherTest extends TestCase {
                        "walrus", "xiphias", "yak", "zebra"};
 
     Analyzer analyzer = new WhitespaceAnalyzer();
+ 
+    Directory aTOmDirectory = new RAMDirectory();     // #1 Create two directories
+    Directory nTOzDirectory = new RAMDirectory();     // #1 Create two directories
 
-    Directory aTOmDirectory = new RAMDirectory();     // #1
-    Directory nTOzDirectory = new RAMDirectory();     // #1
-
-    IndexWriter aTOmWriter = new IndexWriter(aTOmDirectory,
-                                             analyzer,
-                                             IndexWriter.MaxFieldLength.UNLIMITED);
-    IndexWriter nTOzWriter = new IndexWriter(nTOzDirectory,
-                                             analyzer,
-                                             IndexWriter.MaxFieldLength.UNLIMITED);
+    IndexWriter aTOmWriter = new IndexWriter(aTOmDirectory,new IndexWriterConfig(analyzer));
+    IndexWriter nTOzWriter = new IndexWriter(nTOzDirectory,new IndexWriterConfig(analyzer));
     
-
     for (int i=animals.length - 1; i >= 0; i--) {
       Document doc = new Document();
       String animal = animals[i];
-      doc.add(new Field("animal", animal, Field.Store.YES, Field.Index.NOT_ANALYZED));
+      doc.add(new StringField("animal", animal, Field.Store.YES));
       if (animal.charAt(0) < 'n') {
-        aTOmWriter.addDocument(doc);                 // #2
+        aTOmWriter.addDocument(doc);                 //#2 Index halves of the alphabet <n => aTOmWriter
       } else {                                       
-        nTOzWriter.addDocument(doc);                 // #2
+        nTOzWriter.addDocument(doc);                 //#2 Index halves of the alphabet >n => nTOzDirectory
       }
     }
 
     aTOmWriter.close();
     nTOzWriter.close();
 
-    searchers = new IndexSearcher[2];
-    searchers[0] = new IndexSearcher(aTOmDirectory);
-    searchers[1] = new IndexSearcher(nTOzDirectory);
+    IndexReader ireader1 = DirectoryReader.open(aTOmDirectory);
+    IndexReader ireader2 = DirectoryReader.open(nTOzDirectory);
+    multireader = new MultiReader(ireader1,ireader2);
+    searcher = new IndexSearcher(multireader);
+
   }
 
   public void testMulti() throws Exception {
-
-    MultiSearcher searcher = new MultiSearcher(searchers);
-
-    TermRangeQuery query = new TermRangeQuery("animal",   // #3
+    TermRangeQuery query = TermRangeQuery.newStringRange("animal", //ritorna tutti i doc con field   animal che inizia con lettere tha 'h' e 't'
                                               "h",        // #3
                                               "t",        // #3
                                               true, true);// #3
 
-    TopDocs hits = searcher.search(query, 10);
+    TopDocs hits = searcher.search(query, 10); //searcher cerca in ambo le dirctory!!
+    for (ScoreDoc sd : hits.scoreDocs) {
+        Document doc = searcher.doc(sd.doc);
+        System.out.println(sd.score + ": " + doc.get("animal"));
+      }
     assertEquals("tarantula not included", 12, hits.totalHits);
   }
 
-  /*
-    #1 Create two directories
-    #2 Index halves of the alphabet
-    #3 Search both indexes
-  */
 }

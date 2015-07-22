@@ -15,26 +15,36 @@ package lia.searching;
  * See the License for the specific lan      
 */
 
-import junit.framework.TestCase;
+import java.io.IOException;
+import java.util.Vector;
 
-import org.apache.lucene.analysis.WhitespaceAnalyzer;
+import junit.framework.TestCase;
+import lia.meetlucene.Searcher;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInvertState;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexWriterConfig.OpenMode;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Searcher;
-import org.apache.lucene.search.Similarity;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
-
-import java.util.Vector;
 
 // From chapter 3
 public class ScoreTest extends TestCase {
@@ -48,9 +58,93 @@ public class ScoreTest extends TestCase {
     directory.close();
   }
 
+  
+  private void indexSingleFieldDocs(Field[] fields) throws Exception {
+	    Analyzer analyzer = new WhitespaceAnalyzer();
+	    IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
+	    iwConfig.setOpenMode(OpenMode.CREATE);
+	    iwConfig.setInfoStream(System.err);
+	    IndexWriter writer = new IndexWriter(directory, iwConfig);    
+		  
+	    for (Field f : fields) {
+	      Document doc = new Document();
+	      doc.add(f);
+	      writer.addDocument(doc);
+	    }
+	    //writer.optimize();
+	    writer.close();
+  }
+  
+  
+  public void testWildcard() throws Exception {
+	    indexSingleFieldDocs(new Field[]
+	      { new Field("contents", "wild", Field.Store.YES, Field.Index.ANALYZED),
+	        new Field("contents", "child", Field.Store.YES, Field.Index.ANALYZED),
+	        new Field("contents", "mild", Field.Store.YES, Field.Index.ANALYZED),
+	        new Field("contents", "mildew", Field.Store.YES, Field.Index.ANALYZED) });
+	    IndexReader ireader = DirectoryReader.open(directory);
+	    IndexSearcher searcher = new IndexSearcher(ireader);
+	    Query query = new WildcardQuery(new Term("contents", "?ild*"));  //#A
+	    TopDocs matches = searcher.search(query, 10);
+	    System.out.println(query + " , hits = "+matches.totalHits);
+	    for(int i=0;i<matches.totalHits;i++) {
+	    	Document doc = searcher.doc(matches.scoreDocs[i].doc);
+	        System.out.println("match " + i + ": contents = " + doc.get("contents"));
+	      }
+	    
+	    
+	    assertEquals("child no match", 3, matches.totalHits);
+
+	    assertEquals("score the same", matches.scoreDocs[0].score,
+	                                   matches.scoreDocs[1].score, 0.0);
+	    assertEquals("score the same", matches.scoreDocs[1].score,
+	                                   matches.scoreDocs[2].score, 0.0);
+	    //searcher.close();
+  }
+  
+
+  public void testFuzzy() throws Exception {
+    indexSingleFieldDocs(new Field[] { new Field("contents",
+                                                 "fuzzy",
+                                                 Field.Store.YES,
+                                                 Field.Index.ANALYZED),
+                                       new Field("contents",
+                                                 "wuzzy",
+                                                 Field.Store.YES,
+                                                 Field.Index.ANALYZED)
+    								 /*,new Field("contents",
+									            "puzza",
+									            Field.Store.YES,
+									            Field.Index.ANALYZED)*/
+                                     });
+
+    IndexReader ireader = DirectoryReader.open(directory);
+    IndexSearcher searcher = new IndexSearcher(ireader);
+    Query query = new FuzzyQuery(new Term("contents", "wuzza"));
+    TopDocs matches = searcher.search(query, 10);
+    
+    System.out.println(query + " , hits = "+matches.totalHits);
+    for(int i=0;i<matches.totalHits;i++) {
+    	Document doc = searcher.doc(matches.scoreDocs[i].doc);
+        System.out.println("match " + i + ": contents = " + doc.get("contents") + "; score = " + matches.scoreDocs[i].score);
+      }
+    assertEquals("both close enough", 2, matches.totalHits);
+
+    assertTrue("wuzzy closer than fuzzy",
+               matches.scoreDocs[0].score != matches.scoreDocs[1].score);
+
+    Document doc = searcher.doc(matches.scoreDocs[0].doc);
+    assertEquals("wuzza bear", "wuzzy", doc.get("contents"));
+    //searcher.close();
+  }
+
+  
+  
+  /*
   public void testSimple() throws Exception {
     indexSingleFieldDocs(new Field[] {new Field("contents", "x", Field.Store.YES, Field.Index.ANALYZED)});
-    IndexSearcher searcher = new IndexSearcher(directory);
+    IndexReader ireader = DirectoryReader.open(directory);
+    IndexSearcher searcher = new IndexSearcher(ireader);
     searcher.setSimilarity(new SimpleSimilarity());
 
     Query query = new TermQuery(new Term("contents", "x"));
@@ -62,66 +156,13 @@ public class ScoreTest extends TestCase {
 
     assertEquals(1F, matches.scoreDocs[0].score, 0.0);
 
-    searcher.close();
+    //searcher.close();
   }
 
-  private void indexSingleFieldDocs(Field[] fields) throws Exception {
-    IndexWriter writer = new IndexWriter(directory,
-        new WhitespaceAnalyzer(), IndexWriter.MaxFieldLength.UNLIMITED);
-    for (Field f : fields) {
-      Document doc = new Document();
-      doc.add(f);
-      writer.addDocument(doc);
-    }
-    writer.optimize();
-    writer.close();
-  }
 
-  public void testWildcard() throws Exception {
-    indexSingleFieldDocs(new Field[]
-      { new Field("contents", "wild", Field.Store.YES, Field.Index.ANALYZED),
-        new Field("contents", "child", Field.Store.YES, Field.Index.ANALYZED),
-        new Field("contents", "mild", Field.Store.YES, Field.Index.ANALYZED),
-        new Field("contents", "mildew", Field.Store.YES, Field.Index.ANALYZED) });
-
-    IndexSearcher searcher = new IndexSearcher(directory);
-    Query query = new WildcardQuery(new Term("contents", "?ild*"));  //#A
-    TopDocs matches = searcher.search(query, 10);
-    assertEquals("child no match", 3, matches.totalHits);
-
-    assertEquals("score the same", matches.scoreDocs[0].score,
-                                   matches.scoreDocs[1].score, 0.0);
-    assertEquals("score the same", matches.scoreDocs[1].score,
-                                   matches.scoreDocs[2].score, 0.0);
-    searcher.close();
-  }
-  /*
-    #A Construct WildcardQuery using Term
-  */
-
-  public void testFuzzy() throws Exception {
-    indexSingleFieldDocs(new Field[] { new Field("contents",
-                                                 "fuzzy",
-                                                 Field.Store.YES,
-                                                 Field.Index.ANALYZED),
-                                       new Field("contents",
-                                                 "wuzzy",
-                                                 Field.Store.YES,
-                                                 Field.Index.ANALYZED)
-                                     });
-
-    IndexSearcher searcher = new IndexSearcher(directory);
-    Query query = new FuzzyQuery(new Term("contents", "wuzza"));
-    TopDocs matches = searcher.search(query, 10);
-    assertEquals("both close enough", 2, matches.totalHits);
-
-    assertTrue("wuzzy closer than fuzzy",
-               matches.scoreDocs[0].score != matches.scoreDocs[1].score);
-
-    Document doc = searcher.doc(matches.scoreDocs[0].doc);
-    assertEquals("wuzza bear", "wuzzy", doc.get("contents"));
-    searcher.close();
-  }
+  
+  //  #A Construct WildcardQuery using Term
+  
 
   public static class SimpleSimilarity extends Similarity {
     public float lengthNorm(String field, int numTerms) {
@@ -151,6 +192,26 @@ public class ScoreTest extends TestCase {
     public float coord(int overlap, int maxOverlap) {
       return 1.0f;
     }
-  }
 
+	@Override
+	public long computeNorm(FieldInvertState state) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	@Override
+	public SimWeight computeWeight(float queryBoost,
+			CollectionStatistics collectionStats, TermStatistics... termStats) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public SimScorer simScorer(SimWeight weight, LeafReaderContext context)
+			throws IOException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+  }
+*/
 }

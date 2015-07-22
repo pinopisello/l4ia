@@ -16,25 +16,26 @@ package lia.searching;
 */
 
 import junit.framework.TestCase;
-
 import lia.common.TestUtil;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queryParser.ParseException;
-import org.apache.lucene.queryParser.QueryParser;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Version;
 
 // From chapter 3
 public class QueryParserTest extends TestCase {
@@ -46,11 +47,12 @@ public class QueryParserTest extends TestCase {
   protected void setUp() throws Exception {
     analyzer = new WhitespaceAnalyzer();
     dir = TestUtil.getBookIndexDirectory();
-    searcher = new IndexSearcher(dir);
+    IndexReader ireader = DirectoryReader.open(dir);
+    searcher = new IndexSearcher(ireader);  //B
   }
 
   protected void tearDown() throws Exception {
-    searcher.close();
+    //searcher.close();
     dir.close();
   }
 
@@ -65,16 +67,13 @@ public class QueryParserTest extends TestCase {
   }
 
   public void testPrefixQuery() throws Exception {
-    QueryParser parser = new QueryParser(Version.LUCENE_30,
-                                         "category",
-                                         new StandardAnalyzer(Version.LUCENE_30));
+    QueryParser parser = new QueryParser("category", new StandardAnalyzer());
     parser.setLowercaseExpandedTerms(false);
     System.out.println(parser.parse("/Computers/technology*").toString("category"));
   }
 
   public void testFuzzyQuery() throws Exception {
-    QueryParser parser = new QueryParser(Version.LUCENE_30,
-                                         "subject", analyzer);
+    QueryParser parser = new QueryParser("subject", analyzer);
     Query query = parser.parse("kountry~");
     System.out.println("fuzzy: " + query);
 
@@ -84,27 +83,34 @@ public class QueryParserTest extends TestCase {
 
   public void testGrouping() throws Exception {
     Query query = new QueryParser(
-        Version.LUCENE_30,
         "subject",
-        analyzer).parse("(agile OR extreme) AND methodology");
+        analyzer)
+    //.parse("(agile OR extreme) AND methodology");
+    .parse("+title:\"The Pragmatic Programmer\" AND (subject:agile OR subject:extreme OR pippo)");
     TopDocs matches = searcher.search(query, 10);
 
-    assertTrue(TestUtil.hitsIncludeTitle(searcher, matches,
-                                         "Extreme Programming Explained"));
+    System.out.println(query + " , hits = "+matches.totalHits);
+    for(int i=0;i<matches.totalHits;i++) {
+    	Document doc = searcher.doc(matches.scoreDocs[i].doc);
+        System.out.println("match " + i + ": subject = " + doc.get("subject") + "; title = " +doc.get("title"));
+      }
+  
     assertTrue(TestUtil.hitsIncludeTitle(searcher,
                                          matches,
                                          "The Pragmatic Programmer"));
+    
+    assertTrue(TestUtil.hitsIncludeTitle(searcher, matches,
+            "Extreme Programming Explained"));
   }
 
   public void testTermQuery() throws Exception {
-    QueryParser parser = new QueryParser(Version.LUCENE_30,
-                                         "subject", analyzer);
+    QueryParser parser = new QueryParser("subject", analyzer);
     Query query = parser.parse("computers");
     System.out.println("term: " + query);
   }
 
   public void testTermRangeQuery() throws Exception {
-    Query query = new QueryParser(Version.LUCENE_30,                        //A
+    Query query = new QueryParser(                        //A
                                   "subject", analyzer).parse("title2:[Q TO V]"); //A
     assertTrue(query instanceof TermRangeQuery);
 
@@ -112,7 +118,7 @@ public class QueryParserTest extends TestCase {
     assertTrue(TestUtil.hitsIncludeTitle(searcher, matches,
                       "Tapestry in Action"));
 
-    query = new QueryParser(Version.LUCENE_30, "subject", analyzer)  //B
+    query = new QueryParser( "subject", analyzer)  //B
                             .parse("title2:{Q TO \"Tapestry in Action\"}");    //B
     matches = searcher.search(query, 10);
     assertFalse(TestUtil.hitsIncludeTitle(searcher, matches,  // C
@@ -125,27 +131,26 @@ public class QueryParserTest extends TestCase {
   */
 
   public void testPhraseQuery() throws Exception {
-    Query q = new QueryParser(Version.LUCENE_30,
+    Query q = new QueryParser(
                               "field",
-                              new StandardAnalyzer(
-                                Version.LUCENE_30))
+                              new StandardAnalyzer())
                 .parse("\"This is Some Phrase*\"");
     assertEquals("analyzed",
         "\"? ? some phrase\"", q.toString("field"));
 
-    q = new QueryParser(Version.LUCENE_30,
+    q = new QueryParser(
                         "field", analyzer).parse("\"term\"");
     assertTrue("reduced to TermQuery", q instanceof TermQuery);
   }
 
   public void testSlop() throws Exception {
-    Query q = new QueryParser(Version.LUCENE_30,
+    Query q = new QueryParser(
                               "field", analyzer)
             .parse("\"exact phrase\"");
     assertEquals("zero slop",
         "\"exact phrase\"", q.toString("field"));
 
-    QueryParser qp = new QueryParser(Version.LUCENE_30,
+    QueryParser qp = new QueryParser(
                                      "field", analyzer);
     qp.setPhraseSlop(5);
     q = qp.parse("\"sloppy phrase\"");
@@ -154,13 +159,10 @@ public class QueryParserTest extends TestCase {
   }
 
   public void testLowercasing() throws Exception {
-    Query q = new QueryParser(Version.LUCENE_30,
-                              "field", analyzer).parse("PrefixQuery*");
-    assertEquals("lowercased",
-        "prefixquery*", q.toString("field"));
+    Query q = new QueryParser( "field", analyzer).parse("PrefixQuery*");
+    assertEquals("lowercased", "prefixquery*", q.toString("field"));
 
-    QueryParser qp = new QueryParser(Version.LUCENE_30,
-                                     "field", analyzer);
+    QueryParser qp = new QueryParser(  "field", analyzer);
     qp.setLowercaseExpandedTerms(false);
     q = qp.parse("PrefixQuery*");
     assertEquals("not lowercased",
@@ -169,7 +171,7 @@ public class QueryParserTest extends TestCase {
 
   public void testWildcard() {
     try {
-      new QueryParser(Version.LUCENE_30,
+      new QueryParser(
                       "field", analyzer).parse("*xyz");
       fail("Leading wildcard character should not be allowed");
     } catch (ParseException expected) {
@@ -178,14 +180,13 @@ public class QueryParserTest extends TestCase {
   }
 
   public void testBoost() throws Exception {
-    Query q = new QueryParser(Version.LUCENE_30,
-                              "field", analyzer).parse("term^2");
+    Query q = new QueryParser("field", analyzer).parse("term^2");
     assertEquals("term^2.0", q.toString("field"));
   }
 
   public void testParseException() {
     try {
-      new QueryParser(Version.LUCENE_30,
+      new QueryParser(
                       "contents", analyzer).parse("^&#");
     } catch (ParseException expected) {
       // expression is invalid, as expected

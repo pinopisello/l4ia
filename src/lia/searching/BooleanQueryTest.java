@@ -18,6 +18,9 @@ package lia.searching;
 import junit.framework.TestCase;
 import lia.common.TestUtil;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.TopDocs;
@@ -31,25 +34,31 @@ import org.apache.lucene.store.Directory;
 // From chapter 3
 public class BooleanQueryTest extends TestCase {
   public void testAnd() throws Exception {
-    TermQuery searchingBooks =
-      new TermQuery(new Term("subject","search"));  //#1
+	//Termquery subject = "search"
+    TermQuery searchingBooks = new TermQuery(new Term("subject","search"));  //#1
+    
+    //NumericRangeQuery 201001  < pubmonth < 201012
+    Query books2010 =  NumericRangeQuery.newIntRange("pubmonth", 201001,   201012, true, true);                //#2
 
-    Query books2010 =                       //#2
-      NumericRangeQuery.newIntRange("pubmonth", 201001,       //#2
-                                    201012,                   //#2
-                                    true, true);                //#2
-
+    //BooleanQuery = TermQuery AND NumericRangeQuery
     BooleanQuery searchingBooks2010 = new BooleanQuery();              //#3
     searchingBooks2010.add(searchingBooks, BooleanClause.Occur.MUST);  //#3
     searchingBooks2010.add(books2010, BooleanClause.Occur.MUST);       //#3
 
     Directory dir = TestUtil.getBookIndexDirectory();
-    IndexSearcher searcher = new IndexSearcher(dir);
+    IndexReader ireader = DirectoryReader.open(dir);
+    IndexSearcher searcher = new IndexSearcher(ireader);
     TopDocs matches = searcher.search(searchingBooks2010, 10);
-
+    //System.out.println("(subject = search)  AND (201001  < pubmonth < 201012)");
+    System.out.println(searchingBooks2010);
+    for(int i=0;i<matches.totalHits;i++) {
+    	Document doc = searcher.doc(matches.scoreDocs[i].doc);
+        System.out.println("match " + i + ": subject = " + doc.get("subject")+ " ; pubmonth = "+ doc.get("pubmonth"));
+      }
+    
     assertTrue(TestUtil.hitsIncludeTitle(searcher, matches,
                                  "Lucene in Action, Second Edition"));
-    searcher.close();
+    //searcher.close();
     dir.close();
   }
 
@@ -60,14 +69,18 @@ public class BooleanQueryTest extends TestCase {
 */
 
   public void testOr() throws Exception {
+	//TermQuery category = "/technology/computers/programming/methodology"
     TermQuery methodologyBooks = new TermQuery(                       // #1
                new Term("category",                                   // #1
                  "/technology/computers/programming/methodology"));   // #1
 
+    //TermQuery category = "/philosophy/eastern"
     TermQuery easternPhilosophyBooks = new TermQuery(                 // #2
         new Term("category",                                          // #2
             "/philosophy/eastern"));                                  // #2
 
+    
+    //BooleanQuery = TermQuery1 should TermQuery2
     BooleanQuery enlightenmentBooks = new BooleanQuery();             // #3
     enlightenmentBooks.add(methodologyBooks,                          // #3
                            BooleanClause.Occur.SHOULD);               // #3
@@ -75,15 +88,23 @@ public class BooleanQueryTest extends TestCase {
                            BooleanClause.Occur.SHOULD);               // #3
 
     Directory dir = TestUtil.getBookIndexDirectory();
-    IndexSearcher searcher = new IndexSearcher(dir);
+    IndexReader ireader = DirectoryReader.open(dir);
+    IndexSearcher searcher = new IndexSearcher(ireader);
     TopDocs matches = searcher.search(enlightenmentBooks, 10);
     System.out.println("or = " + enlightenmentBooks);
 
+    
+    //System.out.println("category = /philosophy/eastern  OR /technology/computers/programming/methodology");
+    for(int i=0;i<matches.totalHits;i++) {
+    	Document doc = searcher.doc(matches.scoreDocs[i].doc);
+        System.out.println("match " + i + ": title = " + doc.get("title")+ " ; category = "+ doc.get("category"));
+      }
+    
     assertTrue(TestUtil.hitsIncludeTitle(searcher, matches,
                                          "Extreme Programming Explained"));
     assertTrue(TestUtil.hitsIncludeTitle(searcher, matches,
                                          "Tao Te Ching \u9053\u5FB7\u7D93"));
-    searcher.close();
+   // searcher.close();
     dir.close();
   }
 

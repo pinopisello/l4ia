@@ -15,24 +15,29 @@ package lia.advsearching;
  * See the License for the specific lan      
 */
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
 import junit.framework.TestCase;
 import lia.common.TestUtil;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.TermFreqVector;
-
-import java.io.IOException;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.TreeMap;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.util.BytesRef;
 
 // From chapter 5
 public class CategorizerTest extends TestCase {
-  Map categoryMap;
+  Map<String,Map<String,Integer>> categoryMap;
 
   protected void setUp() throws Exception {
-    categoryMap = new TreeMap();
+    categoryMap = new TreeMap<String, Map<String,Integer> >();
 
     buildCategoryVectors();
 //    dumpCategoryVectors();
@@ -60,62 +65,68 @@ public class CategorizerTest extends TestCase {
     }
   }
 
+  
+  //Itera per ogni document e costruice this.categoryMapMap<String,Map<String,Integer>>
+  //Ogni category e' key, value e' una Map <subject_token,incidenza token totale per field "subject" per tutti i docs nell index che hanno tale category>
   private void buildCategoryVectors() throws IOException {
-    IndexReader reader = IndexReader.open(TestUtil.getBookIndexDirectory());
-
+    IndexReader reader = DirectoryReader.open(TestUtil.getBookIndexDirectory());
     int maxDoc = reader.maxDoc();
 
     for (int i = 0; i < maxDoc; i++) {
-      if (!reader.isDeleted(i)) {
         Document doc = reader.document(i);
         String category = doc.get("category");
 
-        Map vectorMap = (Map) categoryMap.get(category);
-        if (vectorMap == null) {
-          vectorMap = new TreeMap();
-          categoryMap.put(category, vectorMap);
+        Map<String,Integer> category_subjectWord_FreqMap = (Map<String,Integer>) categoryMap.get(category);
+        if (category_subjectWord_FreqMap == null) {
+        	category_subjectWord_FreqMap = new TreeMap<String,Integer>();
+          categoryMap.put(category, category_subjectWord_FreqMap);
         }
-
-        TermFreqVector termFreqVector =
-            reader.getTermFreqVector(i, "subject");
-
-        addTermFreqToMap(vectorMap, termFreqVector);
-      }
+        Terms currDocsubjectvector = reader.getTermVector(i, "subject");  
+        updateSubjectFreqMap(category_subjectWord_FreqMap, currDocsubjectvector);
     }
   }
+ 
 
-  private void addTermFreqToMap(Map vectorMap,
-                                TermFreqVector termFreqVector) {
-    String[] terms = termFreqVector.getTerms();
-    int[] freqs = termFreqVector.getTermFrequencies();
-
-    for (int i = 0; i < terms.length; i++) {
-      String term = terms[i];
-
-      if (vectorMap.containsKey(term)) {
-        Integer value = (Integer) vectorMap.get(term);
-        vectorMap.put(term,
-            new Integer(value.intValue() + freqs[i]));
-      } else {
-        vectorMap.put(term, new Integer(freqs[i]));
-      }
-    }
+  private void updateSubjectFreqMap(Map<String,Integer> category_subjectWord_FreqMap,Terms currDocsubjectvector) throws IOException{
+	  List<String> subjectterms=new ArrayList<String>();
+	  List<Integer> subjectfreqs=new ArrayList<Integer>();
+	  TermsEnum termsiterator = currDocsubjectvector.iterator();
+	   BytesRef currsubjectTerm = null;
+	    
+	   while ( (currsubjectTerm = termsiterator.next()) != null) {                      
+	    	String currsubjectTermStr = currsubjectTerm.utf8ToString();
+	    	Integer currsubjectTermStrdocFreq=termsiterator.docFreq();
+	    	subjectterms.add(currsubjectTermStr);
+	    	subjectfreqs.add(currsubjectTermStrdocFreq);
+	    }
+	
+	    for (int i = 0; i < subjectterms.size(); i++) {
+	      String term = subjectterms.get(i);
+	      if (category_subjectWord_FreqMap.containsKey(term)) {
+	        Integer value = (Integer) category_subjectWord_FreqMap.get(term);
+	        category_subjectWord_FreqMap.put(term,
+	            new Integer(value.intValue() + subjectfreqs.get(i)));
+	      } else {
+	    	  category_subjectWord_FreqMap.put(term, new Integer(subjectfreqs.get(i)));
+	      }
+	    }
   }
 
-
+  //per un dato subject cerca quale 
   private String getCategory(String subject) {
-    String[] words = subject.split(" ");
-
+    String[] subject_words = subject.split(" ");
     Iterator categoryIterator = categoryMap.keySet().iterator();
     double bestAngle = Double.MAX_VALUE;
     String bestCategory = null;
 
+    //Per ogni category esistente, misuro l angolo tra  subject_words 
+    //e lo spazio delle words/freq per tale category calcolato in buildCategoryVectors()
     while (categoryIterator.hasNext()) {
       String category = (String) categoryIterator.next();
-//      System.out.println(category);
+      System.out.println(category);
 
-      double angle = computeAngle(words, category);
-//      System.out.println(" -> angle = " + angle + " (" + Math.toDegrees(angle) + ")");
+      double angle = computeAngle(subject_words, category);
+      System.out.println(" -> angle = " + angle + " (" + Math.toDegrees(angle) + ")");
       if (angle < bestAngle) {
         bestAngle = angle;
         bestCategory = category;
@@ -125,33 +136,32 @@ public class CategorizerTest extends TestCase {
     return bestCategory;
   }
 
-  private double computeAngle(String[] words, String category) {
-    Map vectorMap = (Map) categoryMap.get(category);
+  private double computeAngle(String[] subject_words, String category) {
+    Map<String,Integer> category_subjectWord_FreqMap = (Map) categoryMap.get(category);
 
-    int dotProduct = 0;
-    int sumOfSquares = 0;
-    for (String word : words) {
+    int somma_incidenze = 0;  //incidenza totale subject_words
+    int somma_incidenze_qudaratiche = 0;//somma (incidenza  subject_words)^2
+    for (String curr_word : subject_words) {//per ogni word in subject_words calcolo la frequenza totale occorrenze [categoryWordFreq] nel category_subjectWord_FreqMap
       int categoryWordFreq = 0;
-
-      if (vectorMap.containsKey(word)) {
+      if (category_subjectWord_FreqMap.containsKey(curr_word)) {
         categoryWordFreq =
-            ((Integer) vectorMap.get(word)).intValue();
+            ((Integer) category_subjectWord_FreqMap.get(curr_word)).intValue();
       }
 
-      dotProduct += categoryWordFreq;  //#1
-      sumOfSquares += categoryWordFreq * categoryWordFreq;
+      somma_incidenze+=categoryWordFreq;  //#1
+      somma_incidenze_qudaratiche += categoryWordFreq * categoryWordFreq;
     }
 
 
     double denominator;
-    if (sumOfSquares == words.length) {
-      denominator = sumOfSquares; // #2
+    if (somma_incidenze_qudaratiche == subject_words.length) {
+      denominator = somma_incidenze_qudaratiche; // #2
     } else {
-      denominator = Math.sqrt(sumOfSquares) *
-                    Math.sqrt(words.length);
+      denominator = Math.sqrt(somma_incidenze_qudaratiche) *
+                    Math.sqrt(subject_words.length);
     }
 
-    double ratio = dotProduct / denominator;
+    double ratio = somma_incidenze/denominator;
 
     return Math.acos(ratio);
   }

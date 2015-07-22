@@ -15,6 +15,7 @@ package lia.common;
  * See the License for the specific lan      
 */
 
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -26,23 +27,40 @@ import java.util.List;
 import java.util.Properties;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
-import org.apache.lucene.analysis.miscellaneous.LimitTokenCountAnalyzer;
+import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.document.DateTools;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.Field.Store;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 
 public class CreateTestIndex {
-  
+	
+	public static final FieldType TYPE_WITH_TERM_VECT = new FieldType();
+	  
+	  static {
+		  TYPE_WITH_TERM_VECT.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+		  TYPE_WITH_TERM_VECT.setStored(true);
+		  TYPE_WITH_TERM_VECT.setTokenized(true);
+		  TYPE_WITH_TERM_VECT.setStoreTermVectors(true);
+		  TYPE_WITH_TERM_VECT.freeze();
+		  }
+	  
+	  
   public static Document getDocument(String rootDir, File file) throws IOException {
     Properties props = new Properties();
     props.load(new FileInputStream(file));
@@ -60,49 +78,48 @@ public class CreateTestIndex {
     String subject = props.getProperty("subject");   //2
     String pubmonth = props.getProperty("pubmonth"); //2
 
-    System.out.println(title + "\n" + author + "\n" + subject + "\n" + pubmonth + "\n" + category + "\n---------");
+    System.out.println(file.getName()+ "   ->  " + title + "\n" + author + "\n" + subject + "\n" + pubmonth + "\n" + category + "\n---------");
 
-    doc.add(new Field("isbn",                     // 3
+    doc.add(new StringField("isbn",                     // 3
                       isbn,                       // 3
-                      Field.Store.YES,            // 3
-                      Field.Index.NOT_ANALYZED)); // 3
-    doc.add(new Field("category",                 // 3
+                      Field.Store.YES)); // 3
+    doc.add(new StringField("category",                 // 3
                       category,                   // 3
-                      Field.Store.YES,            // 3
-                      Field.Index.NOT_ANALYZED)); // 3
-    doc.add(new Field("title",                    // 3
+                      Field.Store.YES)); // 3
+    
+    //aggiunge docvalues per poter sortare per "category" i risultati di queries.
+    //Vedi SortingExample.java
+    doc.add(new SortedDocValuesField("category", new BytesRef(category)));
+    
+    
+    
+    doc.add(new TextField("title",                    // 3
                       title,                      // 3
-                      Field.Store.YES,            // 3
-                      Field.Index.ANALYZED,       // 3
-                      Field.TermVector.WITH_POSITIONS_OFFSETS));   // 3
-    doc.add(new Field("title2",                   // 3
+                      Field.Store.YES));   // 3
+    doc.add(new TextField("title2",                   // 3
                       title.toLowerCase(),        // 3
-                      Field.Store.YES,            // 3
-                      Field.Index.NOT_ANALYZED_NO_NORMS,   // 3
-                      Field.TermVector.WITH_POSITIONS_OFFSETS));  // 3
+                      Field.Store.YES));  // 3
 
     // split multiple authors into unique field instances
     String[] authors = author.split(",");            // 3
     for (String a : authors) {                       // 3
-      doc.add(new Field("author",                    // 3
+      doc.add(new StringField("author",                    // 3
                         a,                           // 3
-                        Field.Store.YES,             // 3
-                        Field.Index.NOT_ANALYZED,    // 3
-                        Field.TermVector.WITH_POSITIONS_OFFSETS));   // 3
+                        Field.Store.YES));   // 3
     }
 
-    doc.add(new Field("url",                        // 3
+    doc.add(new StringField("url",                        // 3
                       url,                           // 3
-                      Field.Store.YES,                // 3
-                      Field.Index.NOT_ANALYZED_NO_NORMS));   // 3
+                      Field.Store.YES));   // 3
     doc.add(new Field("subject",                     // 3  //4
                       subject,                       // 3  //4
-                      Field.Store.YES,               // 3  //4
-                      Field.Index.ANALYZED,          // 3  //4
-                      Field.TermVector.WITH_POSITIONS_OFFSETS)); // 3  //4
+                      TYPE_WITH_TERM_VECT)); // 3  //4
 
     
     doc.add( new IntField("pubmonth",Integer.parseInt(pubmonth),Store.YES));
+    doc.add(new NumericDocValuesField("pubmonth", Integer.parseInt(pubmonth)));
+    
+    
     
    //doc.add(new NumericField("pubmonth",          // 3
     //                         Field.Store.YES,     // 3
@@ -121,10 +138,8 @@ public class CreateTestIndex {
    // doc.add(new NumericField("pubmonthAsDay")      // 3
     //             .setIntValue((int) (d.getTime()/(1000*3600*24))));   // 3
 
-    for(String text : new String[] {title, subject, author, category}) {           // 3 // 5
-      doc.add(new Field("contents", text,                             // 3 // 5
-                        Field.Store.NO, Field.Index.ANALYZED,         // 3 // 5
-                        Field.TermVector.WITH_POSITIONS_OFFSETS));    // 3 // 5
+    for(String text : new String[] {title, subject, author, category}) {       
+      doc.add(new TextField("contents", text,Field.Store.NO));    
     }
 
     return doc;
@@ -174,12 +189,12 @@ public class CreateTestIndex {
     //Directory dir = FSDirectory.open(new File(indexDir));
     
    
-    Analyzer analyzer = new LimitTokenCountAnalyzer(new WhitespaceAnalyzer(),6);
-    //Analyzer analyzer = new WhitespaceAnalyzer();
+   // Analyzer analyzer = new LimitTokenCountAnalyzer(new WhitespaceAnalyzer(),6);
+    Analyzer analyzer = new SimpleAnalyzer();
     analyzer.setVersion(Version.LUCENE_5_2_1); 
     IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
     iwConfig.setOpenMode(OpenMode.CREATE);
-    iwConfig.setInfoStream(System.err);
+    //iwConfig.setInfoStream(System.err);
     IndexWriter w = new IndexWriter(dir, iwConfig);           //3
     
    // IndexWriter w = new IndexWriter(dir,

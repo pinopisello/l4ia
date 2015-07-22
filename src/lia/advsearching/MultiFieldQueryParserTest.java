@@ -15,29 +15,31 @@ package lia.advsearching;
  * See the License for the specific lan      
 */
 
-import lia.common.TestUtil;
 import junit.framework.TestCase;
+import lia.common.TestUtil;
 
-import org.apache.lucene.analysis.SimpleAnalyzer;
-import org.apache.lucene.queryParser.MultiFieldQueryParser;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.analysis.core.SimpleAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.util.Version;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 
 // From chapter 5
 public class MultiFieldQueryParserTest extends TestCase {
+	
+	//Trova tutti i Doc con fields  title o subject che abbiano "development" dentro  title OR subject
   public void testDefaultOperator() throws Exception {
-    Query query = new MultiFieldQueryParser(Version.LUCENE_30,
-                                            new String[]{"title", "subject"},
-        new SimpleAnalyzer()).parse("development");
+    Query query = new MultiFieldQueryParser( new String[]{"title", "subject"},
+        new StandardAnalyzer()).parse("development");
 
     Directory dir = TestUtil.getBookIndexDirectory();
-    IndexSearcher searcher = new IndexSearcher(
-                               dir,
-                               true);
+    IndexReader ireader = DirectoryReader.open(dir);
+    IndexSearcher searcher = new IndexSearcher(ireader);
     TopDocs hits = searcher.search(query, 10);
 
     assertTrue(TestUtil.hitsIncludeTitle(
@@ -49,12 +51,13 @@ public class MultiFieldQueryParserTest extends TestCase {
            searcher,                          //A
            hits,                              //A
            "Extreme Programming Explained")); //A
-    searcher.close();
+    //searcher.close();
     dir.close();
   }
 
   public void testSpecifiedOperator() throws Exception {
-    Query query = MultiFieldQueryParser.parse(Version.LUCENE_30,
+	  //Trova tutti i Doc con fields che abbiano "lucene" dentro ambo title AND subject
+    Query query = MultiFieldQueryParser.parse(
         "lucene",
         new String[]{"title", "subject"},
         new BooleanClause.Occur[]{BooleanClause.Occur.MUST,
@@ -62,9 +65,8 @@ public class MultiFieldQueryParserTest extends TestCase {
         new SimpleAnalyzer());
 
     Directory dir = TestUtil.getBookIndexDirectory();
-    IndexSearcher searcher = new IndexSearcher(
-                               dir,
-                               true);
+    IndexReader ireader = DirectoryReader.open(dir);
+    IndexSearcher searcher = new IndexSearcher(ireader);
     TopDocs hits = searcher.search(query, 10);
 
     assertTrue(TestUtil.hitsIncludeTitle(
@@ -72,7 +74,7 @@ public class MultiFieldQueryParserTest extends TestCase {
             hits,
             "Lucene in Action, Second Edition"));
     assertEquals("one and only one", 1, hits.scoreDocs.length);
-    searcher.close();
+    //searcher.close();
     dir.close();
   }
 

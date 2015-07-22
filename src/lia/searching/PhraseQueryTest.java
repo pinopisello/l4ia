@@ -15,19 +15,26 @@ package lia.searching;
  * See the License for the specific lan      
 */
 
+import java.io.IOException;
+
 import junit.framework.TestCase;
-import org.apache.lucene.analysis.WhitespaceAnalyzer;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-
-import java.io.IOException;
+import org.apache.lucene.store.RAMDirectory;
 
 // From chapter 3
 public class PhraseQueryTest extends TestCase {
@@ -36,22 +43,31 @@ public class PhraseQueryTest extends TestCase {
 
   protected void setUp() throws IOException {
     dir = new RAMDirectory();
-    IndexWriter writer = new IndexWriter(dir,
-                                         new WhitespaceAnalyzer(),
-                                         IndexWriter.MaxFieldLength.UNLIMITED);
+    
+    Analyzer analyzer = new WhitespaceAnalyzer();
+    IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
+    iwConfig.setOpenMode(OpenMode.CREATE);
+    iwConfig.setInfoStream(System.err);
+    IndexWriter writer = new IndexWriter(dir, iwConfig);      
+    
+    
+    //IndexWriter writer = new IndexWriter(dir,
+     //                                    new WhitespaceAnalyzer(),
+     //                                    IndexWriter.MaxFieldLength.UNLIMITED);
+    
+    
     Document doc = new Document();
-    doc.add(new Field("field",                                    // 1
-              "the quick brown fox jumped over the lazy dog",     // 1
-              Field.Store.YES,                                    // 1
-              Field.Index.ANALYZED));                             // 1
+    doc.add(new TextField("field",                                    
+              "the quick brown fox jumped over the lazy dog",     
+              Field.Store.YES));                           
     writer.addDocument(doc);
     writer.close();
-
-    searcher = new IndexSearcher(dir);
+    IndexReader ireader = DirectoryReader.open(dir);
+    searcher = new IndexSearcher(ireader);
   }
 
   protected void tearDown() throws IOException {
-    searcher.close();
+   // searcher.close();
     dir.close();
   }
 
@@ -65,6 +81,12 @@ public class PhraseQueryTest extends TestCase {
     }                                                   // 3
 
     TopDocs matches = searcher.search(query, 10);
+    System.out.println(query + " , hits = "+matches.totalHits);
+    for(int i=0;i<matches.totalHits;i++) {
+    	Document doc = searcher.doc(matches.scoreDocs[i].doc);
+        System.out.println("match " + i + ": field = " + doc.get("field"));
+      }
+    
     return matches.totalHits > 0;
   }
   /*

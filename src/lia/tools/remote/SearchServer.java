@@ -15,18 +15,15 @@ package lia.tools.remote;
  * See the License for the specific lan      
 */
 
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ParallelMultiSearcher;
-import org.apache.lucene.search.RemoteSearchable;
-import org.apache.lucene.search.Searchable;
-import org.apache.lucene.search.Searcher;
-import org.apache.lucene.search.MultiSearcher;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
-
 import java.io.File;
 import java.rmi.Naming;
 import java.rmi.registry.LocateRegistry;
+
+import lia.meetlucene.Searcher;
+
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 
 // From chapter 9
 public class SearchServer {
@@ -44,8 +41,7 @@ public class SearchServer {
     Searchable[] searchables = new Searchable[ALPHABET.length()];
     for (int i = 0; i < ALPHABET.length(); i++) {
       dirs[i] = FSDirectory.open(new File(basedir, ""+ALPHABET.charAt(i)));
-      searchables[i] = new IndexSearcher(      //2
-          dirs[i]);                            //2
+      searchables[i] = new IndexSearcher(  dirs[i]);                            //2
     }
 
     LocateRegistry.createRegistry(1099);         //3

@@ -15,15 +15,10 @@ package lia.analysis.synonym;
  * See the License for the specific lan      
 */
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.LowerCaseFilter;
-import org.apache.lucene.analysis.StopFilter;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.StopAnalyzer;
-import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.analysis.standard.StandardFilter;
-import org.apache.lucene.util.Version;
 import java.io.Reader;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 
 // From chapter 4
 public class SynonymAnalyzer extends Analyzer {
@@ -33,8 +28,11 @@ public class SynonymAnalyzer extends Analyzer {
     this.engine = engine;
   }
 
+  /*
   public TokenStream tokenStream(String fieldName, Reader reader) {
-    TokenStream result = new SynonymFilter(
+	  TokenStream result = null;
+	  
+   TokenStream result = new SynonymFilter(
                           new StopFilter(true,
                             new LowerCaseFilter(
                               new StandardFilter(
@@ -44,5 +42,11 @@ public class SynonymAnalyzer extends Analyzer {
                           engine
                          );
     return result;
-  }
+  }*/
+
+@Override
+protected TokenStreamComponents createComponents(String fieldName) {
+	// TODO Auto-generated method stub
+	return null;
+}
 }

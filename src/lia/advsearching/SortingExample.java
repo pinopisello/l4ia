@@ -15,27 +15,30 @@ package lia.advsearching;
  * See the License for the specific lan      
 */
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Version;
-import org.apache.lucene.queryParser.QueryParser;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-
-import java.io.IOException;
 import java.io.PrintStream;
 import java.text.DecimalFormat;
 
 import lia.common.TestUtil;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.queryparser.classic.QueryParser;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortField.Type;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 
 // From chapter 5
 public class SortingExample {
@@ -44,23 +47,65 @@ public class SortingExample {
   public SortingExample(Directory directory) {
     this.directory = directory;
   }
+  
 
-  public void displayResults(Query query, Sort sort)            // #1
-      throws IOException {
-    IndexSearcher searcher = new IndexSearcher(directory);
 
-    searcher.setDefaultFieldSortScoring(true, false);            // #2
+  public static void main(String[] args) throws Exception {
+    Query allBooks = new MatchAllDocsQuery();
+    Directory directory = TestUtil.getBookIndexDirectory();
+    QueryParser parser = new QueryParser( "contents", new StandardAnalyzer(  ));             
+    Query javaORcontents =parser.parse("java OR action");
+    
+    BooleanQuery query = new BooleanQuery();          
+    //Si fa l OR delle due per dare uno score diverso ai docs.
+    //Se metto solo allBooks tutti hanno score = 1
+    //Se metto solo javaORcontents solo 2 dei 13 docs appaione nel resulteset.
+    
+    query.add(allBooks, BooleanClause.Occur.SHOULD);                             
+    query.add(javaORcontents, BooleanClause.Occur.SHOULD);       
+    SortingExample example = new SortingExample(directory);                     
 
-    TopDocs results = searcher.search(query, null,         // #3
-                                      20, sort);           // #3
+    example.displayResults(query, Sort.RELEVANCE);
 
-    System.out.println("\nResults for: " +                      // #4
-        query.toString() + " sorted by " + sort);
+    example.displayResults(query, Sort.INDEXORDER);
+
+    example.displayResults(query, new Sort(new SortField("category", Type.STRING)));
+
+    example.displayResults(query, new Sort(new SortField("pubmonth", Type.INT, true))); //true significa inverse:dal piu alto al piu basso.
+
+    example.displayResults(query,
+        new Sort(new SortField("category", Type.STRING),
+                     SortField.FIELD_SCORE,
+                 new SortField("pubmonth", Type.INT, true)
+                 ));
+
+    example.displayResults(query, new Sort(new SortField[] {SortField.FIELD_SCORE,
+    									   new SortField("category", Type.STRING)}));
+    directory.close();
+  }
+
+  public void displayResults(Query query, Sort sort) throws Exception {          // #1  throws IOException {
+	IndexReader ireader = DirectoryReader.open(directory);
+	IndexSearcher searcher = new IndexSearcher(ireader);
+ 
+	
+	//Quando si impone un sort order , Lucene NON assegna uno score agli ScoreDocs.
+	//Per questo bisogna chiedere al searcher di assegnre uno score comunque.
+	//Vedi  searcher.search soto con doDocScores,  doMaxScore = true
+    //searcher.setDefaultFieldSortScoring(true, false);              // #2
+
+	//Sort per campi che non siano id o necessitano che l'indice abbia un SortedDocValuesField aggiunto per ogni doc per il field che andra' sortato.
+	//Vedi CreateTestIndex.java doc.add(new SortedDocValuesField("category", new BytesRef(category)));
+	
+    TopDocs results = searcher.search(query, null,20, sort,true,true );           // #3
+
+    System.out.println("\nResults for: " + query.toString() + " sorted by " + sort);
 
     System.out.println(StringUtils.rightPad("Title", 30) +
       StringUtils.rightPad("pubmonth", 10) +
       StringUtils.center("id", 4) +
-      StringUtils.center("score", 15));
+      StringUtils.center("score", 12)+ 
+      StringUtils.rightPad("category", 40));
 
     PrintStream out = new PrintStream(System.out, true, "UTF-8");    // #5
 
@@ -70,63 +115,19 @@ public class SortingExample {
       float score = sd.score;
       Document doc = searcher.doc(docID);
       out.println(
-          StringUtils.rightPad(                                                  // #6
-              StringUtils.abbreviate(doc.get("title"), 29), 30) +                // #6
+          StringUtils.rightPad( StringUtils.abbreviate(doc.get("title"), 29), 30) + // #6
           StringUtils.rightPad(doc.get("pubmonth"), 10) +                        // #6
           StringUtils.center("" + docID, 4) +                                    // #6
-          StringUtils.leftPad(                                                   // #6
-             scoreFormatter.format(score), 12));                                 // #6
-      out.println("   " + doc.get("category"));
+          StringUtils.rightPad( scoreFormatter.format(score), 12)+
+          StringUtils.rightPad(doc.get("category"), 40));
+         
       //out.println(searcher.explain(query, docID));   // #7
     }
 
-    searcher.close();
+    //searcher.close();
   }
 
-/*
-  The Sort object (#1) encapsulates an ordered collection of
-  field sorting information. We ask IndexSearcher (#2) to
-  compute scores per hit. Then we call the overloaded search
-  method that accepts the custom Sort (#3). We use the
-  useful toString method (#4) of the Sort class to describe
-  itself, and then create PrintStream that accepts UTF-8
-  encoded output (#5), and finally use StringUtils (#6) from
-  Apache Commons Lang for nice columnar output
-  formatting. Later youùll see a reason to look at the
-  explanation of score . For now, itùs commented out (#7).
-*/
 
-  public static void main(String[] args) throws Exception {
-    Query allBooks = new MatchAllDocsQuery();
-
-    QueryParser parser = new QueryParser(Version.LUCENE_30,                 // #1
-                                         "contents",                             // #1
-                                         new StandardAnalyzer(                   // #1
-                                           Version.LUCENE_30));             // #1
-    BooleanQuery query = new BooleanQuery();                                     // #1
-    query.add(allBooks, BooleanClause.Occur.SHOULD);                             // #1
-    query.add(parser.parse("java OR action"), BooleanClause.Occur.SHOULD);       // #1
-
-    Directory directory = TestUtil.getBookIndexDirectory();                     // #2
-    SortingExample example = new SortingExample(directory);                     // #2
-
-    example.displayResults(query, Sort.RELEVANCE);
-
-    example.displayResults(query, Sort.INDEXORDER);
-
-    example.displayResults(query, new Sort(new SortField("category", SortField.STRING)));
-
-    example.displayResults(query, new Sort(new SortField("pubmonth", SortField.INT, true)));
-
-    example.displayResults(query,
-        new Sort(new SortField("category", SortField.STRING),
-                 SortField.FIELD_SCORE,
-                 new SortField("pubmonth", SortField.INT, true)
-                 ));
-
-    example.displayResults(query, new Sort(new SortField[] {SortField.FIELD_SCORE, new SortField("category", SortField.STRING)}));
-    directory.close();
-  }
 }
 
 /*
