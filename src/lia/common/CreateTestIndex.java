@@ -27,7 +27,8 @@ import java.util.List;
 import java.util.Properties;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.core.SimpleAnalyzer;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.analysis.miscellaneous.LimitTokenCountAnalyzer;
 import org.apache.lucene.document.DateTools;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -46,18 +47,17 @@ import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.Version;
 
 public class CreateTestIndex {
 	
-	public static final FieldType TYPE_WITH_TERM_VECT = new FieldType();
+	public static final FieldType TYPE_TOKENIZED_STORED_WITH_TERM_VECT = new FieldType();
 	  
 	  static {
-		  TYPE_WITH_TERM_VECT.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-		  TYPE_WITH_TERM_VECT.setStored(true);
-		  TYPE_WITH_TERM_VECT.setTokenized(true);
-		  TYPE_WITH_TERM_VECT.setStoreTermVectors(true);
-		  TYPE_WITH_TERM_VECT.freeze();
+		  TYPE_TOKENIZED_STORED_WITH_TERM_VECT.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+		  TYPE_TOKENIZED_STORED_WITH_TERM_VECT.setStored(true);
+		  TYPE_TOKENIZED_STORED_WITH_TERM_VECT.setTokenized(true);
+		  TYPE_TOKENIZED_STORED_WITH_TERM_VECT.setStoreTermVectors(true);
+		  TYPE_TOKENIZED_STORED_WITH_TERM_VECT.freeze();
 		  }
 	  
 	  
@@ -108,12 +108,12 @@ public class CreateTestIndex {
                         Field.Store.YES));   // 3
     }
 
-    doc.add(new StringField("url",                        // 3
-                      url,                           // 3
-                      Field.Store.YES));   // 3
-    doc.add(new Field("subject",                     // 3  //4
-                      subject,                       // 3  //4
-                      TYPE_WITH_TERM_VECT)); // 3  //4
+    doc.add(new StringField("url",                        
+                      url,                          
+                      Field.Store.YES));   
+    doc.add(new Field("subject",                     //Subject stora TermVector nell index per BooksLikeThis.docsLike()
+                      subject,                      
+                      TYPE_TOKENIZED_STORED_WITH_TERM_VECT)); 
 
     
     doc.add( new IntField("pubmonth",Integer.parseInt(pubmonth),Store.YES));
@@ -166,18 +166,7 @@ public class CreateTestIndex {
     }
   }
 
- /* private static class MyStandardAnalyzer extends StandardAnalyzer {  // 6
-    public MyStandardAnalyzer( ) {                 // 6
-      super();                                            // 6
-    }                                                                 // 6
-    public int getPositionIncrementGap(String field) {                // 6
-      if (field.equals("contents")) {                                 // 6
-        return 100;                                                   // 6
-      } else {                                                        // 6
-        return 0;                                                     // 6
-      }
-    }
-  }*/
+
 
   public static void main(String[] args) throws IOException {
     String dataDir = args[0];
@@ -189,9 +178,10 @@ public class CreateTestIndex {
     //Directory dir = FSDirectory.open(new File(indexDir));
     
    
-   // Analyzer analyzer = new LimitTokenCountAnalyzer(new WhitespaceAnalyzer(),6);
-    Analyzer analyzer = new SimpleAnalyzer();
-    analyzer.setVersion(Version.LUCENE_5_2_1); 
+    //Analyzer analyzer = new LimitTokenCountAnalyzer(new WhitespaceAnalyzer(),6);
+    //Analyzer analyzer = new SimpleAnalyzer();
+    Analyzer analyzer = new MyAnalyzer();
+    //analyzer.setVersion(Version.LUCENE_5_2_1); 
     IndexWriterConfig iwConfig = new IndexWriterConfig(analyzer);
     iwConfig.setOpenMode(OpenMode.CREATE);
     //iwConfig.setInfoStream(System.err);
